@@ -4,9 +4,11 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
 
 export const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
-type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 const CHAT_EFFORT = (process.env.CLAUDE_CHAT_EFFORT ?? "medium") as Effort;
 const ANALYSIS_EFFORT = (process.env.CLAUDE_ANALYSIS_EFFORT ?? "medium") as Effort;
+// The canvas re-scores after every intake turn, so it trades depth for speed.
+export const ASSESS_EFFORT = (process.env.CLAUDE_ASSESS_EFFORT ?? "low") as Effort;
 
 // Server-side refusal fallback: if the model declines on policy grounds, the API
 // re-runs the request on Anthropic's recommended fallback model inside the same call.

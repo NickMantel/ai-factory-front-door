@@ -8,7 +8,7 @@ import {
   saveBrief,
   saveInsights,
 } from "./db";
-import { generateObject } from "./claude";
+import { ASSESS_EFFORT, generateObject } from "./claude";
 import { AssessmentSchema, BriefSchema, InsightsSchema } from "./schemas";
 import { assessPrompt, assessSystem, briefPrompt, briefSystem, coePortfolioSystem, insightsPrompt } from "./prompts";
 import { DIMENSIONS, computeReadiness, meetsThreshold } from "./rubric";
@@ -21,6 +21,7 @@ export async function runAssessment(id: string) {
     schema: AssessmentSchema,
     system: assessSystem(all, id),
     prompt: assessPrompt(uc, listMessages(id, "intake"), documentTexts(id)),
+    effort: ASSESS_EFFORT,
   });
   // Normalise to exactly one entry per rubric dimension, in order.
   a.dimensions = DIMENSIONS.map(
