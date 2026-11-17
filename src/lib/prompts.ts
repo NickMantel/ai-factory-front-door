@@ -129,7 +129,8 @@ function dossier(uc: UseCase) {
   return `### ${uc.id}: ${uc.title}
 Business unit: ${uc.business_unit} | Submitter: ${uc.submitter} | Status: ${labelOf.status(uc.status)} | Readiness: ${uc.readiness}% | Indicative pathway: ${labelOf.pathway(uc.pathway)} | Patterns: ${uc.patterns.map(labelOf.pattern).join(", ")} | Est. annual value: ${uc.est_value ? `A$${Math.round(uc.est_value).toLocaleString("en-AU")}` : "unknown"} | Created: ${uc.created_at.slice(0, 10)}${uc.submitted_at ? ` | Submitted: ${uc.submitted_at.slice(0, 10)}` : ""}
 Summary: ${uc.one_liner}
-${uc.brief ? `Brief: ${JSON.stringify(uc.brief)}` : uc.assessment ? `Assessment: ${JSON.stringify({ captured: uc.assessment.captured, dimensions: uc.assessment.dimensions.map((d) => [d.key, d.score]) })}` : ""}`;
+${uc.assessment ? `Dimension scores (0-5): ${uc.assessment.dimensions.map((d) => `${d.key} ${d.score}`).join(", ")}` : ""}
+${uc.brief ? `Brief: ${JSON.stringify(uc.brief)}` : uc.assessment ? `Captured: ${JSON.stringify(uc.assessment.captured)}` : ""}`;
 }
 
 const COE_INSTRUCTIONS = `You are the AI CoE analyst copilot. AI Centre of Excellence staff use you to interrogate business-unit AI use cases and the overall portfolio so they can prioritise and decide faster. Answer directly and analytically, citing use case IDs (e.g. UC-1003) for every claim about a use case. Surface overlaps and economies of scale (shared patterns, data or platforms), risks, missing evidence and sensible next steps. Use markdown tables when comparing several use cases. If the data doesn't support an answer, say so. Australian English.`;
