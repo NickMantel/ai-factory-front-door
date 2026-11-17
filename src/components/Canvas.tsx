@@ -3,21 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { ArrowUpRight, CheckCircle2, ChevronDown, FileText, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, FileText, X } from "lucide-react";
 import type { DocumentMeta, UseCase } from "@/lib/db";
 import { DIMENSIONS, MIN_DIMENSION_SCORE, READINESS_THRESHOLD, labelOf } from "@/lib/rubric";
-import { Button, ReadinessRing, ScoreBar, SectionLabel, Spinner, Tag, formatAUD } from "./ui";
+import { Button, CaseId, ReadinessMeter, ScoreBar, SectionLabel, Spinner, Tag, formatAUD } from "./ui";
 
 const CAPTURED_LABELS: Record<string, string> = {
   problem: "Problem",
-  users_and_volumes: "Users & volumes",
+  users_and_volumes: "Users and volumes",
   current_process: "Current process",
   desired_outcome: "Desired outcome",
   data_sources: "Data sources",
   proposed_solution: "Proposed solution",
   value_hypothesis: "Value hypothesis",
   risks: "Risks",
-  sponsor: "Sponsor / owner",
+  sponsor: "Sponsor and owner",
 };
 
 export function Canvas({
@@ -46,201 +46,201 @@ export function Canvas({
   const submitted = useCase.status !== "draft";
   const weakest = a ? Math.min(...a.dimensions.map((d) => d.score)) : 0;
 
+  const statusLine = submitted
+    ? "Submitted to the AI CoE"
+    : useCase.ready
+      ? "Ready to submit"
+      : !a
+        ? "Describe your idea or attach documents to get a first read"
+        : useCase.readiness < READINESS_THRESHOLD
+          ? `${READINESS_THRESHOLD - useCase.readiness} points to the triage line`
+          : `Every criterion needs ${MIN_DIMENSION_SCORE}/5 or more to submit, lowest is ${weakest}/5`;
+
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-5">
+    <div className="flex flex-col gap-6 p-4 sm:p-6">
       {/* Readiness */}
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <div className="flex items-center gap-4">
-          <ReadinessRing value={useCase.readiness} size={84} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <SectionLabel>Triage readiness</SectionLabel>
-              {assessing && (
-                <span className="flex items-center gap-1 text-[11px] text-accent">
-                  <Spinner className="size-3" /> Updating
-                </span>
-              )}
-            </div>
-            <div className="mt-1 text-sm leading-snug">
-              {submitted ? (
-                <span className="flex items-center gap-1.5 font-medium text-good">
-                  <CheckCircle2 className="size-4" /> Submitted to the AI CoE
-                </span>
-              ) : useCase.ready ? (
-                <span className="font-medium text-good">Ready to submit to the AI CoE</span>
-              ) : !a ? (
-                <span className="text-muted">Describe your idea or drop in documents to get your first read-out.</span>
-              ) : useCase.readiness < READINESS_THRESHOLD ? (
-                <span className="text-muted">
-                  <span className="font-medium text-foreground">{READINESS_THRESHOLD - useCase.readiness} points</span> to the
-                  triage threshold
-                </span>
-              ) : (
-                <span className="text-muted">
-                  Lift every area to at least {MIN_DIMENSION_SCORE}/5 to submit (lowest is {weakest}/5)
-                </span>
-              )}
-            </div>
+      <section>
+        <div className="flex items-baseline justify-between">
+          <SectionLabel>Triage readiness</SectionLabel>
+          {assessing && (
+            <span className="flex items-center gap-2 text-xs text-subtle">
+              <Spinner className="size-3" /> Updating
+            </span>
+          )}
+        </div>
+        <div className={clsx("mt-2 font-mono text-[32px] leading-none font-medium tabular-nums", assessing && "text-subtle")}>
+          {useCase.readiness}%
+        </div>
+        <div className="mt-4">
+          <ReadinessMeter value={useCase.readiness} />
+          <div className="mt-2 flex justify-between text-xs text-subtle">
+            <span className={clsx(useCase.ready && "text-accent")}>{statusLine}</span>
+            <span className="font-mono">{READINESS_THRESHOLD}% line</span>
           </div>
         </div>
         <div className="mt-4">
           {submitted ? (
             <Button variant="secondary" className="w-full" onClick={onViewBrief} disabled={!useCase.brief}>
-              <FileText className="size-4" /> View Use Case Brief
+              View use case brief
             </Button>
           ) : (
             <Button className="w-full" onClick={onSubmit} disabled={!useCase.ready || submitting || assessing}>
               {submitting ? (
                 <>
-                  <Spinner /> Writing your Use Case Brief…
+                  <Spinner /> Writing your use case brief
                 </>
               ) : (
-                <>
-                  <Sparkles className="size-4" /> Submit to AI CoE
-                </>
+                "Submit to AI CoE"
               )}
             </Button>
           )}
         </div>
-      </div>
+      </section>
 
       {a && (
         <>
-          <div>
-            <div className="text-[15px] font-semibold leading-snug tracking-tight">{useCase.title}</div>
-            <p className="mt-1 text-[13px] leading-relaxed text-muted">{a.one_liner}</p>
-          </div>
+          <section>
+            <div className="text-[15px] leading-[22px] font-medium">{useCase.title}</div>
+            <p className="mt-2 text-[13px] leading-5 text-muted">{a.one_liner}</p>
+          </section>
 
-          {/* Dimensions */}
-          <div className="rounded-xl border border-line bg-surface">
-            <div className="border-b border-line px-4 py-2.5">
+          {/* The readiness sheet: eight criteria, ruled like a form */}
+          <section className="overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="flex h-10 items-center justify-between border-b border-line px-4">
               <SectionLabel>Assessment</SectionLabel>
+              <span className="text-xs text-subtle">Score out of 5</span>
             </div>
-            <ul className="divide-y divide-line">
-              {DIMENSIONS.map((d) => {
+            <ol className="divide-y divide-line">
+              {DIMENSIONS.map((d, i) => {
                 const s = a.dimensions.find((x) => x.key === d.key);
                 const score = s?.score ?? 0;
+                const low = score < MIN_DIMENSION_SCORE;
                 return (
-                  <li key={d.key} className="px-4 py-2.5" title={d.description}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[13px] font-medium">{d.label}</span>
+                  <li key={d.key} className="grid grid-cols-[20px_1fr_auto_20px] gap-x-3 px-4 py-3" title={d.description}>
+                    <span className="font-mono text-xs leading-5 text-subtle">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="text-[13px] leading-5">{d.label}</span>
+                    <span className="flex h-5 items-center">
                       <ScoreBar score={score} />
-                    </div>
-                    {s?.gap && <p className="mt-1 text-xs leading-relaxed text-muted">{s.gap}</p>}
+                    </span>
+                    <span className={clsx("text-right font-mono text-xs leading-5 tabular-nums", low ? "text-bad" : "text-muted")}>
+                      {score}
+                    </span>
+                    {s?.gap && <p className="col-start-2 col-end-5 mt-1 text-xs leading-[18px] text-subtle">{s.gap}</p>}
                   </li>
                 );
               })}
-            </ul>
-          </div>
+            </ol>
+          </section>
 
-          {/* Next questions */}
           {!submitted && a.next_questions.length > 0 && (
-            <div>
+            <section>
               <SectionLabel className="mb-2">Sharpen it next</SectionLabel>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {a.next_questions.map((q) => (
                   <button
                     key={q}
                     onClick={() => onAsk(q)}
-                    className="group flex items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-left text-[13px] leading-snug transition-colors hover:border-accent/50 hover:bg-accent-soft/40"
+                    className="group flex items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-left text-[13px] leading-5 transition-colors duration-150 hover:border-line-strong hover:bg-raised"
                   >
                     <span className="flex-1">{q}</span>
-                    <ArrowUpRight className="mt-0.5 size-3.5 shrink-0 text-subtle group-hover:text-accent" />
+                    <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-subtle group-hover:text-foreground" strokeWidth={1.5} />
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Pathway & patterns */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-line bg-surface p-3">
-              <SectionLabel>Indicative pathway</SectionLabel>
-              <div className="mt-1 text-[13px] font-semibold leading-snug">{labelOf.pathway(a.indicative_pathway)}</div>
-            </div>
-            <div className="rounded-xl border border-line bg-surface p-3">
-              <SectionLabel>Est. annual value</SectionLabel>
-              <div className="mt-1 text-[13px] font-semibold">{formatAUD(a.estimated_annual_value_aud)}</div>
-            </div>
-          </div>
-          <p className="-mt-2 text-xs leading-relaxed text-muted">{a.pathway_rationale}</p>
+          <section className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <SectionLabel>Indicative pathway</SectionLabel>
+            <SectionLabel>Est. annual value</SectionLabel>
+            <div className="text-[13px]">{labelOf.pathway(a.indicative_pathway)}</div>
+            <div className="font-mono text-[13px] tabular-nums">{formatAUD(a.estimated_annual_value_aud)}</div>
+            <p className="col-span-2 mt-2 text-xs leading-[18px] text-subtle">{a.pathway_rationale}</p>
+          </section>
 
-          <div>
-            <SectionLabel className="mb-1.5">AI patterns</SectionLabel>
+          <section>
+            <SectionLabel className="mb-2">AI patterns</SectionLabel>
             <div className="flex flex-wrap gap-1">
               {a.ai_patterns.map((p) => (
                 <Tag key={p}>{labelOf.pattern(p)}</Tag>
               ))}
             </div>
-          </div>
+          </section>
 
           {similar.length > 0 && (
-            <div className="rounded-xl border border-accent/25 bg-accent-soft/50 p-3">
-              <SectionLabel className="mb-1.5 text-[#1c5cab]">Similar use cases in the portfolio</SectionLabel>
-              <ul className="space-y-1 text-[13px]">
+            <section>
+              <SectionLabel className="mb-2">Similar use cases already in the portfolio</SectionLabel>
+              <ul className="flex flex-col gap-2">
                 {similar.map((s) => (
-                  <li key={s.id}>
-                    <span className="font-medium">{s.title}</span>
-                    <span className="text-muted"> · {s.business_unit}</span>
+                  <li key={s.id} className="flex items-center gap-2 text-[13px]">
+                    <CaseId id={s.id} />
+                    <span className="truncate">{s.title}</span>
+                    <span className="ml-auto shrink-0 text-xs text-subtle">{s.business_unit}</span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 text-xs text-muted">Shared logic can mean faster delivery through reuse.</p>
-            </div>
+              <p className="mt-2 text-xs text-subtle">Shared logic can mean faster delivery through reuse</p>
+            </section>
           )}
 
-          {/* Captured */}
-          <div className="rounded-xl border border-line bg-surface">
+          <section className="rounded-xl border border-line bg-surface">
             <button
               onClick={() => setShowCaptured((v) => !v)}
-              className="flex w-full items-center justify-between px-4 py-2.5"
+              className="flex h-10 w-full items-center justify-between px-4"
+              aria-expanded={showCaptured}
             >
               <SectionLabel>What we&apos;ve captured</SectionLabel>
-              <ChevronDown className={clsx("size-4 text-subtle transition-transform", showCaptured && "rotate-180")} />
+              <ChevronDown
+                className={clsx("size-4 text-subtle transition-transform duration-150", showCaptured && "rotate-180")}
+                strokeWidth={1.5}
+              />
             </button>
             {showCaptured && (
-              <dl className="space-y-2.5 border-t border-line px-4 py-3">
+              <dl className="flex flex-col gap-3 border-t border-line px-4 py-4">
                 {Object.entries(a.captured).map(([k, v]) => (
                   <div key={k}>
-                    <dt className="text-[11px] font-medium text-subtle">{CAPTURED_LABELS[k] ?? k}</dt>
-                    <dd className={clsx("text-[13px] leading-relaxed", !v && "italic text-subtle")}>{v || "Not yet covered"}</dd>
+                    <dt className="text-xs text-subtle">{CAPTURED_LABELS[k] ?? k}</dt>
+                    <dd className={clsx("mt-1 text-[13px] leading-5", !v && "text-subtle")}>{v || "Not yet covered"}</dd>
                   </div>
                 ))}
               </dl>
             )}
-          </div>
+          </section>
         </>
       )}
 
       {documents.length > 0 && (
-        <div>
-          <SectionLabel className="mb-1.5">Documents</SectionLabel>
-          <ul className="space-y-1">
+        <section>
+          <SectionLabel className="mb-2">Documents</SectionLabel>
+          <ul className="flex flex-col gap-1">
             {documents.map((d) => (
-              <li key={d.id} className="group flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]">
-                <FileText className="size-3.5 shrink-0 text-subtle" />
+              <li key={d.id} className="group flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-[13px]">
+                <FileText className="size-4 shrink-0 text-subtle" strokeWidth={1.5} />
                 <span className="min-w-0 flex-1 truncate">{d.filename}</span>
-                <span className="shrink-0 text-[11px] text-subtle">
-                  {Math.max(1, Math.round(d.chars / 1000))}k chars{d.truncated ? " · truncated" : ""}
+                <span className="shrink-0 font-mono text-xs text-subtle">
+                  {Math.max(1, Math.round(d.chars / 1000))}k chars{d.truncated ? ", truncated" : ""}
                 </span>
                 {!submitted && (
                   <button
                     onClick={() => onRemoveDoc(d.id)}
-                    className="text-subtle opacity-0 group-hover:opacity-100 hover:text-bad"
+                    className="text-subtle opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:text-bad focus-visible:opacity-100"
                     aria-label={`Remove ${d.filename}`}
                   >
-                    <X className="size-3.5" />
+                    <X className="size-4" strokeWidth={1.5} />
                   </button>
                 )}
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
 
       {submitted && (
-        <Link href={`/coe/use-cases/${useCase.id}`} className="text-center text-xs text-muted underline-offset-2 hover:underline">
-          See how the AI CoE views this use case →
+        <Link
+          href={`/coe/use-cases/${useCase.id}`}
+          className="text-center text-xs text-subtle underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+        >
+          See how the AI CoE views this use case
         </Link>
       )}
     </div>

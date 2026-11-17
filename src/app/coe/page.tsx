@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Layers, RefreshCw, Search, Sparkles, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import type { UseCase } from "@/lib/db";
 import type { Insights } from "@/lib/schemas";
 import { AI_PATTERNS, BUSINESS_UNITS, FUNNEL, PATHWAYS, STATUSES, labelOf } from "@/lib/rubric";
@@ -12,11 +12,13 @@ import { Copilot } from "@/components/Copilot";
 import {
   Button,
   Card,
-  ReadinessRing,
+  CaseId,
+  PageSpinner,
+  Percent,
+  ReadinessMeter,
   SectionLabel,
   Spinner,
   StatusPill,
-  Tag,
   formatAUD,
   timeAgo,
 } from "@/components/ui";
@@ -145,13 +147,7 @@ export default function CoEDashboard() {
   const toggle = (kind: NonNullable<Filter>["kind"], key: string) =>
     setFilter((f) => (f?.kind === kind && f.key === key ? null : { kind, key }));
 
-  if (!useCases || !stats) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-muted">
-        <Spinner />
-      </div>
-    );
-  }
+  if (!useCases || !stats) return <PageSpinner />;
 
   const filterLabel =
     filter &&
@@ -166,123 +162,112 @@ export default function CoEDashboard() {
   return (
     <div className="flex flex-1 items-start">
       <div className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6">
-          <div className="mb-6 flex flex-wrap items-end gap-4">
+        <div className="enter mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-8">
+          <div className="mb-8 flex flex-wrap items-end gap-4">
             <div className="flex-1">
-              <SectionLabel>AI CoE · Portfolio</SectionLabel>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">AI use case landscape</h1>
+              <h1 className="text-[28px] leading-[1.15] font-medium">Use case portfolio</h1>
+              <p className="mt-2 text-sm text-muted">
+                {stats.total} use cases from {stats.buRows.length} business units
+              </p>
             </div>
             <Button variant="ghost" size="sm" onClick={reset}>
-              <RefreshCw className="size-3.5" /> Reset demo data
+              Reset demo data
             </Button>
             <Button variant={copilot ? "secondary" : "primary"} onClick={() => setCopilot((o) => !o)}>
-              <Sparkles className="size-4" /> {copilot ? "Hide copilot" : "Ask the portfolio"}
+              {copilot ? "Hide copilot" : "Ask the portfolio"}
             </Button>
           </div>
 
-          {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* Stats: numbers only */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
+              { label: "Use cases captured", value: String(stats.total), sub: `${stats.shaping} still being shaped` },
               {
-                label: "Use cases captured",
-                value: stats.total,
-                sub: `${stats.shaping} being shaped by business units`,
-              },
-              {
-                label: "Awaiting CoE triage",
-                value: stats.awaiting,
+                label: "Awaiting triage",
+                value: String(stats.awaiting),
                 sub: "Submitted with a standard brief",
                 action: () => toggle("status", "submitted"),
               },
-              {
-                label: "Pipeline value (est.)",
-                value: formatAUD(stats.value),
-                sub: "Annual, excl. parked and declined",
-              },
-              {
-                label: "Shared-capability clusters",
-                value: stats.clusters,
-                sub: "AI patterns appearing in 2+ use cases",
-              },
-            ].map((k) => (
-              <Card key={k.label} className={clsx("p-4", k.action && "cursor-pointer hover:border-line-strong")}>
-                <div onClick={k.action}>
-                  <div className="text-xs text-muted">{k.label}</div>
-                  <div className="mt-1.5 text-3xl font-semibold tracking-tight tabular-nums">{k.value}</div>
-                  <div className="mt-1 text-[11px] text-subtle">{k.sub}</div>
-                </div>
-              </Card>
-            ))}
+              { label: "Pipeline value, est.", value: formatAUD(stats.value), sub: "Annual, excluding parked and declined" },
+              { label: "Shared-capability clusters", value: String(stats.clusters), sub: "AI patterns in two or more use cases" },
+            ].map((k) =>
+              k.action ? (
+                <button
+                  key={k.label}
+                  onClick={k.action}
+                  className="rounded-xl border border-line bg-surface p-5 text-left transition-colors duration-150 hover:border-line-strong"
+                >
+                  <Stat {...k} accent />
+                </button>
+              ) : (
+                <Card key={k.label} className="p-5">
+                  <Stat {...k} />
+                </Card>
+              ),
+            )}
           </div>
 
-          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
-            <Card className="p-5">
-              <div className="mb-4 flex items-baseline justify-between">
-                <div className="text-sm font-semibold">Opportunity funnel</div>
-                <div className="text-[11px] text-subtle">Conversion vs previous stage</div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <Card className="p-6">
+              <div className="mb-4 flex items-baseline justify-between gap-4">
+                <h2 className="text-[15px] font-medium">Pipeline</h2>
+                <span className="text-xs text-subtle">Each stage counts every case that has reached it</span>
               </div>
-              <Funnel stages={stats.funnel} />
+              <Funnel stages={stats.funnel} highlight="Submitted" />
             </Card>
 
-            <Card className="flex flex-col p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <Sparkles className="size-4 text-accent" />
-                <div className="flex-1 text-sm font-semibold">Portfolio insights</div>
-                {insights && (
-                  <span className="text-[11px] text-subtle">Generated {timeAgo(insights.generated_at)}</span>
-                )}
+            <Card className="flex max-h-[452px] flex-col">
+              <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-5">
+                <h2 className="flex-1 text-[15px] font-medium">Portfolio insights</h2>
+                {insights && <span className="text-xs text-subtle">{timeAgo(insights.generated_at)}</span>}
                 <Button variant="secondary" size="sm" onClick={generate} disabled={generating}>
-                  {generating ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+                  {generating && <Spinner className="size-3" />}
                   {insights ? "Refresh" : "Generate"}
                 </Button>
               </div>
-              {insightError && (
-                <div className="mb-2 rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">{insightError}</div>
-              )}
+              {insightError && <div className="mx-5 mt-4 rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">{insightError}</div>}
               {generating && !insights ? (
-                <div className="flex flex-1 items-center justify-center gap-2 py-10 text-sm text-muted">
-                  <Spinner /> Claude is reading the portfolio…
+                <div className="flex flex-1 items-center justify-center gap-2 p-8 text-sm text-muted">
+                  <Spinner /> Reading every use case, about a minute
                 </div>
               ) : insights ? (
-                <div
-                  className={clsx("flex-1 space-y-4 overflow-y-auto text-sm", generating && "opacity-50")}
-                  style={{ maxHeight: 340 }}
-                >
-                  <p className="leading-relaxed font-medium">{insights.insights.headline}</p>
+                <div className={clsx("flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-5", generating && "opacity-50")}>
+                  <p className="text-sm leading-[22px]">{insights.insights.headline}</p>
                   {insights.insights.clusters.length > 0 && (
-                    <div className="space-y-2">
-                      <SectionLabel>Build once, reuse many times</SectionLabel>
-                      {insights.insights.clusters.map((c) => (
-                        <div key={c.name} className="rounded-lg border border-line bg-background/60 p-3">
-                          <div className="flex items-center gap-2">
-                            <Layers className="size-3.5 text-accent" />
-                            <span className="text-[13px] font-semibold">{c.name}</span>
-                            <span className="text-[11px] text-subtle">{c.use_case_ids.length} use cases</span>
-                          </div>
-                          <p className="mt-1 text-xs leading-relaxed text-muted">{c.shared_logic}</p>
-                          <p className="mt-1 text-xs leading-relaxed">{c.opportunity}</p>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {c.use_case_ids.map((id) => (
-                              <Link key={id} href={`/coe/use-cases/${id}`}>
-                                <Tag className="font-mono hover:border-accent hover:text-accent">{id}</Tag>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="mt-6">
+                      <SectionLabel className="mb-2">Build once, reuse many times</SectionLabel>
+                      <ol className="divide-y divide-line border-y border-line">
+                        {insights.insights.clusters.map((c) => (
+                          <li key={c.name} className="py-3">
+                            <div className="flex items-baseline gap-2">
+                              <span className="font-medium">{c.name}</span>
+                              <span className="font-mono text-xs text-subtle">{c.use_case_ids.length}</span>
+                            </div>
+                            <p className="mt-1 text-muted">{c.shared_logic}</p>
+                            <p className="mt-1">{c.opportunity}</p>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {c.use_case_ids.map((id) => (
+                                <Link key={id} href={`/coe/use-cases/${id}`} className="rounded-[4px]">
+                                  <CaseId id={id} className="transition-colors duration-150 hover:border-accent hover:text-accent" />
+                                </Link>
+                              ))}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
                     </div>
                   )}
-                  <div>
-                    <SectionLabel className="mb-1.5">Observations</SectionLabel>
-                    <ul className="list-disc space-y-1 pl-4 text-[13px] leading-relaxed text-foreground/85">
+                  <div className="mt-6">
+                    <SectionLabel className="mb-2">Observations</SectionLabel>
+                    <ul className="list-disc space-y-2 pl-4 text-muted">
                       {insights.insights.observations.map((o) => (
                         <li key={o}>{o}</li>
                       ))}
                     </ul>
                   </div>
-                  <div>
-                    <SectionLabel className="mb-1.5">Recommended focus</SectionLabel>
-                    <ol className="list-decimal space-y-1 pl-4 text-[13px] leading-relaxed text-foreground/85">
+                  <div className="mt-6">
+                    <SectionLabel className="mb-2">Recommended focus</SectionLabel>
+                    <ol className="list-decimal space-y-2 pl-4 text-muted">
                       {insights.insights.recommended_focus.map((o) => (
                         <li key={o}>{o}</li>
                       ))}
@@ -290,34 +275,30 @@ export default function CoEDashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center text-sm text-muted">
-                  <p className="max-w-sm">
-                    Have Claude read every use case to find shared logic, economies of scale, gaps and where to focus.
-                  </p>
-                </div>
+                <p className="flex flex-1 items-center p-5 text-sm leading-[22px] text-muted">
+                  Have Claude read every use case to find shared logic, economies of scale, gaps and where to focus.
+                </p>
               )}
             </Card>
           </div>
 
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            <Card className="p-5">
-              <div className="mb-3 text-sm font-semibold">AI patterns</div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <Card className="p-6">
+              <div className="mb-2 flex items-baseline justify-between gap-4">
+                <h2 className="text-[15px] font-medium">AI patterns</h2>
+                <span className="text-xs text-subtle">Select a pattern to filter the table</span>
+              </div>
               <BarList
                 rows={stats.patternRows}
                 onSelect={(k) => toggle("pattern", k)}
                 selected={filter?.kind === "pattern" ? filter.key : null}
+                showIds
               />
             </Card>
-            <Card className="p-5">
-              <div className="mb-3 text-sm font-semibold">By business unit</div>
-              <BarList
-                rows={stats.buRows}
-                onSelect={(k) => toggle("bu", k)}
-                selected={filter?.kind === "bu" ? filter.key : null}
-              />
-            </Card>
-            <Card className="p-5">
-              <div className="mb-3 text-sm font-semibold">Recommended pathway</div>
+            <Card className="p-6">
+              <h2 className="mb-2 text-[15px] font-medium">By business unit</h2>
+              <BarList rows={stats.buRows} onSelect={(k) => toggle("bu", k)} selected={filter?.kind === "bu" ? filter.key : null} />
+              <h2 className="mt-6 mb-2 text-[15px] font-medium">Recommended pathway</h2>
               <BarList
                 rows={stats.pathwayRows}
                 onSelect={(k) => toggle("pathway", k)}
@@ -326,31 +307,32 @@ export default function CoEDashboard() {
             </Card>
           </div>
 
-          <Card className="mt-3 p-5">
-            <div className="mb-1 flex items-baseline justify-between">
-              <div className="text-sm font-semibold">Prioritisation matrix</div>
-              <div className="text-[11px] text-subtle">Value vs readiness · click a point to open it</div>
+          <Card className="mt-4 p-6">
+            <div className="mb-2 flex items-baseline justify-between gap-4">
+              <h2 className="text-[15px] font-medium">Value against readiness</h2>
+              <span className="text-xs text-subtle">Select a point to open the use case</span>
             </div>
             <PriorityMatrix useCases={useCases} />
           </Card>
 
-          {/* Table */}
-          <Card className="mt-3 overflow-hidden">
+          <Card className="mt-4 overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3">
-              <div className="text-sm font-semibold">All use cases</div>
+              <h2 className="text-[15px] font-medium">All use cases</h2>
+              <span className="font-mono text-xs text-subtle">{table.length}</span>
               {filter && (
                 <button
                   onClick={() => setFilter(null)}
-                  className="flex h-6 items-center gap-1 rounded-full bg-accent-soft px-2.5 text-[11px] font-medium text-[#1c5cab]"
+                  className="flex h-6 items-center gap-1 rounded-md bg-raised px-2 text-xs text-foreground transition-colors duration-150 hover:bg-[#ebebec]"
                 >
-                  {filterLabel} <X className="size-3" />
+                  {filterLabel} <X className="size-3" strokeWidth={1.5} />
                 </button>
               )}
               <div className="ml-auto flex items-center gap-2">
                 <select
                   value={filter?.kind === "status" ? filter.key : ""}
                   onChange={(e) => setFilter(e.target.value ? { kind: "status", key: e.target.value } : null)}
-                  className="h-8 rounded-lg border border-line bg-surface px-2 text-xs"
+                  aria-label="Filter by status"
+                  className="h-8 rounded-lg border border-line-strong bg-surface px-2 text-[13px]"
                 >
                   <option value="">All statuses</option>
                   {STATUSES.map((s) => (
@@ -360,67 +342,63 @@ export default function CoEDashboard() {
                   ))}
                 </select>
                 <div className="relative">
-                  <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-subtle" />
+                  <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" strokeWidth={1.5} />
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder="Search"
-                    className="h-8 w-44 rounded-lg border border-line bg-surface pr-2 pl-8 text-xs outline-none focus:border-foreground/30"
+                    aria-label="Search use cases"
+                    className="h-8 w-48 rounded-lg border border-line-strong bg-surface pr-2 pl-9 text-[13px] outline-none focus:border-foreground/30"
                   />
                 </div>
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-[13px]">
-                <thead className="text-[11px] text-subtle">
-                  <tr className="border-b border-line">
-                    <th className="px-5 py-2 font-medium">Use case</th>
-                    <th className="px-3 py-2 font-medium">Business unit</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                    <th className="px-3 py-2 font-medium">Readiness</th>
-                    <th className="px-3 py-2 font-medium">Pathway</th>
-                    <th className="px-3 py-2 font-medium">Patterns</th>
-                    <th className="px-3 py-2 text-right font-medium">Est. value</th>
-                    <th className="px-5 py-2 text-right font-medium">Updated</th>
+              <table className="w-full min-w-[960px] text-left text-[13px]">
+                <thead className="text-xs text-subtle">
+                  <tr className="h-9 border-b border-line whitespace-nowrap">
+                    <th className="px-5 font-normal">Use case</th>
+                    <th className="px-3 font-normal">Business unit</th>
+                    <th className="px-3 font-normal">Status</th>
+                    <th className="px-3 font-normal">Readiness</th>
+                    <th className="px-3 font-normal">Pathway</th>
+                    <th className="px-3 font-normal">Pattern</th>
+                    <th className="px-3 text-right font-normal">Est. value</th>
+                    <th className="px-5 text-right font-normal">Updated</th>
                   </tr>
                 </thead>
                 <tbody>
                   {table.map((u) => (
-                    <tr key={u.id} className="border-b border-line last:border-0 hover:bg-black/[0.015]">
-                      <td className="px-5 py-2.5">
-                        <Link href={`/coe/use-cases/${u.id}`} className="block">
-                          <div className="font-medium hover:text-accent">{u.title}</div>
-                          <div className="font-mono text-[11px] text-subtle">{u.id}</div>
+                    <tr key={u.id} className="h-12 border-b border-line transition-colors duration-150 last:border-0 hover:bg-raised">
+                      <td className="px-5">
+                        <Link href={`/coe/use-cases/${u.id}`} className="flex items-center gap-3">
+                          <CaseId id={u.id} />
+                          <span className="truncate">{u.title}</span>
                         </Link>
                       </td>
-                      <td className="px-3 py-2.5 text-muted">{u.business_unit}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 text-muted">{u.business_unit}</td>
+                      <td className="px-3">
                         <StatusPill status={u.status} />
                       </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <ReadinessRing value={u.readiness} size={22} label={false} />
-                          <span className="tabular-nums">{u.readiness}%</span>
+                      <td className="px-3">
+                        <div className="flex items-center gap-3">
+                          <Percent value={u.readiness} className="w-9 text-right" />
+                          <ReadinessMeter value={u.readiness} compact />
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">{labelOf.pathwayShort(u.pathway)}</td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-wrap gap-1">
-                          {u.patterns.slice(0, 2).map((p) => (
-                            <Tag key={p}>{labelOf.pattern(p)}</Tag>
-                          ))}
-                        </div>
+                      <td className="px-3 whitespace-nowrap text-muted">{labelOf.pathwayShort(u.pathway)}</td>
+                      <td className="px-3 whitespace-nowrap text-muted">
+                        {u.patterns[0] ? labelOf.pattern(u.patterns[0]) : "—"}
+                        {u.patterns.length > 1 && <span className="ml-1 font-mono text-xs text-subtle">+{u.patterns.length - 1}</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{formatAUD(u.est_value)}</td>
-                      <td className="px-5 py-2.5 text-right text-xs whitespace-nowrap text-subtle">
-                        {timeAgo(u.updated_at)}
-                      </td>
+                      <td className="px-3 text-right font-mono tabular-nums">{formatAUD(u.est_value)}</td>
+                      <td className="px-5 text-right text-xs whitespace-nowrap text-subtle">{timeAgo(u.updated_at)}</td>
                     </tr>
                   ))}
                   {table.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-5 py-10 text-center text-muted">
-                        No use cases match.
+                      <td colSpan={8} className="px-5 py-12 text-center text-muted">
+                        No use cases match
                       </td>
                     </tr>
                   )}
@@ -442,5 +420,17 @@ export default function CoEDashboard() {
         ]}
       />
     </div>
+  );
+}
+
+function Stat({ label, value, sub, accent }: { label: string; value: string; sub: string; accent?: boolean }) {
+  return (
+    <>
+      <div className="text-[13px] text-muted">{label}</div>
+      <div className={clsx("mt-3 font-mono text-[28px] leading-none font-medium tabular-nums", accent && "text-accent")}>
+        {value}
+      </div>
+      <div className="mt-3 text-xs text-subtle">{sub}</div>
+    </>
   );
 }

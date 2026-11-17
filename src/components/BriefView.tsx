@@ -1,65 +1,89 @@
 import clsx from "clsx";
 import type { Brief } from "@/lib/schemas";
 import { labelOf } from "@/lib/rubric";
-import { SectionLabel, Tag, formatAUD } from "./ui";
+import { CaseId, SectionLabel, Tag, formatAUD } from "./ui";
 
-const READINESS_TONE: Record<string, string> = {
-  available: "text-good",
-  partial: "text-warn",
-  unknown: "text-subtle",
-  not_available: "text-bad",
+const READINESS_DOT: Record<string, string> = {
+  available: "bg-good",
+  partial: "bg-warn",
+  unknown: "bg-[#c4c4c8]",
+  not_available: "bg-bad",
 };
-const SEVERITY_TONE: Record<string, string> = {
-  high: "bg-bad-soft text-bad",
-  medium: "bg-warn-soft text-[#8a5a00]",
-  low: "bg-[#f1f0ec] text-muted",
+const SEVERITY_DOT: Record<string, string> = {
+  high: "bg-bad",
+  medium: "bg-warn",
+  low: "bg-[#c4c4c8]",
 };
+
+function Dot({ className }: { className: string }) {
+  return <span className={clsx("inline-block size-1.5 shrink-0 rounded-full", className)} aria-hidden />;
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-line py-5 first:border-t-0 first:pt-0">
-      <SectionLabel className="mb-2">{title}</SectionLabel>
-      <div className="text-sm leading-relaxed text-foreground/90">{children}</div>
+    <section className="grid gap-2 border-t border-line py-6 sm:grid-cols-[160px_1fr] sm:gap-8">
+      <SectionLabel className="pt-0.5">{title}</SectionLabel>
+      <div className="min-w-0 text-sm leading-[22px]">{children}</div>
     </section>
   );
 }
 
-export function BriefView({ brief, meta }: { brief: Brief; meta: { id: string; bu: string; submitter: string; date?: string | null } }) {
+export function BriefView({
+  brief,
+  meta,
+  embedded,
+}: {
+  brief: Brief;
+  meta: { id: string; bu: string; submitter: string; date?: string | null };
+  /** The page around it already shows the case number and title. */
+  embedded?: boolean;
+}) {
   return (
     <article>
-      <div className="mb-6">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-          <span className="font-mono">{meta.id}</span>
-          <span>·</span>
-          <span>{meta.bu}</span>
-          <span>·</span>
-          <span>{meta.submitter}</span>
-          {meta.date && (
-            <>
+      <div className="mb-8">
+        {!embedded && (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-subtle">
+              <CaseId id={meta.id} />
+              <span>{meta.bu}</span>
               <span>·</span>
-              <span>{new Date(meta.date).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</span>
-            </>
-          )}
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">{brief.title}</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-foreground/80">{brief.executive_summary}</p>
+              <span>{meta.submitter}</span>
+              {meta.date && (
+                <>
+                  <span>·</span>
+                  <span>
+                    {new Date(meta.date).toLocaleDateString("en-AU", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                </>
+              )}
+            </div>
+            <h1 className="text-[28px] leading-[1.15] font-medium">{brief.title}</h1>
+          </>
+        )}
+        <p className={clsx(!embedded && "mt-4", "max-w-[65ch] text-[15px] leading-6 text-muted")}>
+          {brief.executive_summary}
+        </p>
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-line bg-background/60 p-3">
+      <div className="mb-2 grid gap-4 border-t border-line pt-6 sm:grid-cols-3">
+        <div>
           <SectionLabel>Recommended pathway</SectionLabel>
-          <div className="mt-1 text-sm font-semibold">{labelOf.pathway(brief.recommended_pathway)}</div>
+          <div className="mt-2 text-sm">{labelOf.pathway(brief.recommended_pathway)}</div>
         </div>
-        <div className="rounded-lg border border-line bg-background/60 p-3">
+        <div>
           <SectionLabel>Est. annual value</SectionLabel>
-          <div className="mt-1 text-sm font-semibold">
-            {formatAUD(brief.value.estimated_annual_value_aud)}
-            <span className="ml-1.5 text-xs font-normal text-muted">{brief.value.confidence} confidence</span>
+          <div className="mt-2 text-sm">
+            <span className="font-mono tabular-nums">{formatAUD(brief.value.estimated_annual_value_aud)}</span>
+            <span className="ml-2 text-xs text-subtle">{brief.value.confidence} confidence</span>
           </div>
         </div>
-        <div className="rounded-lg border border-line bg-background/60 p-3">
+        <div>
           <SectionLabel>AI patterns</SectionLabel>
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-1">
             {brief.ai_patterns.map((p) => (
               <Tag key={p}>{labelOf.pattern(p)}</Tag>
             ))}
@@ -72,8 +96,8 @@ export function BriefView({ brief, meta }: { brief: Brief; meta: { id: string; b
       <Section title="Target users">{brief.target_users}</Section>
       <Section title="Proposed solution">
         <p>{brief.proposed_solution}</p>
-        <p className="mt-2 text-foreground/75">
-          <span className="font-medium text-foreground">How AI helps: </span>
+        <p className="mt-2 text-muted">
+          <span className="text-foreground">How AI helps: </span>
           {brief.how_ai_helps}
         </p>
       </Section>
@@ -93,9 +117,14 @@ export function BriefView({ brief, meta }: { brief: Brief; meta: { id: string; b
               <tbody>
                 {brief.data.map((d, i) => (
                   <tr key={i} className="border-b border-line last:border-0 align-top">
-                    <td className="py-2 pr-3 font-medium">{d.source}</td>
-                    <td className="py-2 pr-3 text-foreground/80">{d.description}</td>
-                    <td className={clsx("py-2 pr-3 whitespace-nowrap", READINESS_TONE[d.readiness])}>{d.readiness.replace(/_/g, " ")}</td>
+                    <td className="py-2 pr-3">{d.source}</td>
+                    <td className="py-2 pr-3 text-muted">{d.description}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-muted">
+                      <span className="inline-flex items-center gap-2">
+                        <Dot className={READINESS_DOT[d.readiness]} />
+                        {d.readiness.replace(/_/g, " ")}
+                      </span>
+                    </td>
                     <td className="py-2 whitespace-nowrap text-muted">{d.sensitivity.replace(/_/g, " ")}</td>
                   </tr>
                 ))}
@@ -121,8 +150,8 @@ export function BriefView({ brief, meta }: { brief: Brief; meta: { id: string; b
                 {brief.value.metrics.map((m, i) => (
                   <tr key={i} className="border-b border-line last:border-0">
                     <td className="py-2 pr-3">{m.metric}</td>
-                    <td className="py-2 pr-3 tabular-nums text-muted">{m.baseline}</td>
-                    <td className="py-2 tabular-nums font-medium">{m.target}</td>
+                    <td className="py-2 pr-3 font-mono text-[13px] tabular-nums text-muted">{m.baseline}</td>
+                    <td className="py-2 font-mono text-[13px] tabular-nums">{m.target}</td>
                   </tr>
                 ))}
               </tbody>
@@ -137,8 +166,9 @@ export function BriefView({ brief, meta }: { brief: Brief; meta: { id: string; b
         <Section title="Risks & controls">
           <ul className="space-y-2">
             {brief.risks.map((r, i) => (
-              <li key={i} className="flex gap-2.5">
-                <span className={clsx("mt-0.5 h-5 shrink-0 rounded px-1.5 text-[11px] leading-5 font-medium", SEVERITY_TONE[r.severity])}>
+              <li key={i} className="grid grid-cols-[72px_1fr] gap-2">
+                <span className="flex h-[22px] items-center gap-2 text-xs text-muted">
+                  <Dot className={SEVERITY_DOT[r.severity]} />
                   {r.severity}
                 </span>
                 <span>
@@ -154,10 +184,10 @@ export function BriefView({ brief, meta }: { brief: Brief; meta: { id: string; b
       <Section title="Pathway rationale">
         <p>{brief.pathway_rationale}</p>
         {brief.alternative_pathways.length > 0 && (
-          <ul className="mt-2 space-y-1 text-foreground/75">
+          <ul className="mt-2 space-y-1 text-muted">
             {brief.alternative_pathways.map((a, i) => (
               <li key={i}>
-                <span className="font-medium text-foreground">Not {labelOf.pathway(a.pathway)}:</span> {a.why_not}
+                <span className="text-foreground">Not {labelOf.pathway(a.pathway)}:</span> {a.why_not}
               </li>
             ))}
           </ul>

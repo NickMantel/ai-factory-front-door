@@ -16,26 +16,23 @@ export function AppHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-background/85 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-line bg-background">
       {health && !health.claude && (
-        <div className="bg-warn-soft px-4 py-1.5 text-center text-xs text-[#8a5a00]">
+        <div className="border-b border-line bg-warn-soft px-4 py-2 text-center text-xs text-warn">
           No Claude credentials found. Add <code className="font-mono">ANTHROPIC_API_KEY</code> to{" "}
-          <code className="font-mono">.env.local</code> and restart. Seeded data still works; AI features won&apos;t.
+          <code className="font-mono">.env</code> and restart. Seeded data works; AI features won&apos;t
         </div>
       )}
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <Logo />
-          <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">AI Front Door</div>
-            <div className="hidden text-[11px] text-muted sm:block">AI Centre of Excellence</div>
-          </div>
+      <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
+        <Link href="/" className="text-base font-medium">
+          AI Front Door
         </Link>
+        <span className="hidden text-[13px] text-subtle sm:inline">AI Centre of Excellence</span>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-4">
           {health?.claude && (
-            <span className="hidden items-center gap-1.5 text-[11px] text-muted md:flex">
-              <span className="size-1.5 rounded-full bg-good" />
+            <span className="hidden items-center gap-2 font-mono text-xs text-subtle md:flex">
+              <span className="size-1.5 rounded-full bg-good" aria-hidden />
               {health.model}
             </span>
           )}
@@ -53,37 +50,19 @@ function RoutedModeToggle() {
 }
 
 function ModeToggle({ coe }: { coe: boolean }) {
+  const item = (active: boolean) =>
+    clsx(
+      "flex h-7 items-center rounded-md px-3 transition-colors duration-150",
+      active ? "bg-surface text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-line" : "text-muted hover:text-foreground",
+    );
   return (
-    <nav aria-label="Switch view" className="flex rounded-lg border border-line bg-surface p-0.5 text-xs font-medium">
-      <Link
-        href="/"
-        className={clsx(
-          "rounded-md px-3 py-1.5 transition-colors",
-          !coe ? "bg-foreground text-white" : "text-muted hover:text-foreground",
-        )}
-      >
+    <nav aria-label="Switch view" className="flex gap-1 rounded-lg bg-raised p-1 text-[13px] font-medium">
+      <Link href="/" className={item(!coe)} aria-current={!coe ? "page" : undefined}>
         Business unit
       </Link>
-      <Link
-        href="/coe"
-        className={clsx(
-          "rounded-md px-3 py-1.5 transition-colors",
-          coe ? "bg-foreground text-white" : "text-muted hover:text-foreground",
-        )}
-      >
+      <Link href="/coe" className={item(coe)} aria-current={coe ? "page" : undefined}>
         AI CoE
       </Link>
     </nav>
-  );
-}
-
-function Logo() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden>
-      <rect width="28" height="28" rx="7" fill="#121212" />
-      <path d="M9 21V9.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21" stroke="white" strokeWidth="1.6" fill="none" />
-      <path d="M7 21h14" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="16" cy="15" r="1.2" fill="#6da7ec" />
-    </svg>
   );
 }

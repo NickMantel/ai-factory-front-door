@@ -145,61 +145,59 @@ export function Chat({
       }}
     >
       {dragging && (
-        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-accent bg-accent-soft/80 text-sm font-medium text-[#1c5cab]">
+        <div className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-xl border border-dashed border-accent bg-surface/90 text-sm text-accent">
           Drop files to add them to this use case
         </div>
       )}
 
-      <div ref={scroller} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+      <div ref={scroller} className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         {messages.length === 0 && emptyState}
-        <div className="mx-auto flex max-w-2xl flex-col gap-5">
+        <div className="mx-auto flex max-w-2xl flex-col gap-6">
           {messages.map((m, i) =>
             m.role === "user" ? (
-              <div key={i} className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-white">
+              <div
+                key={i}
+                className="ml-auto max-w-[85%] rounded-xl bg-raised px-4 py-3 text-sm leading-[22px] whitespace-pre-wrap"
+              >
                 {m.content}
               </div>
             ) : (
-              <div key={i} className="flex gap-3">
-                <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-accent-soft text-[10px] font-semibold text-[#1c5cab]">
-                  AI
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 text-[11px] font-medium text-subtle">{assistantLabel}</div>
-                  {waiting && i === messages.length - 1 ? (
-                    <div className="typing flex gap-1 py-2 text-subtle" aria-label="Thinking">
-                      <span className="size-1.5 rounded-full bg-current" />
-                      <span className="size-1.5 rounded-full bg-current" />
-                      <span className="size-1.5 rounded-full bg-current" />
-                    </div>
-                  ) : m.error ? (
-                    <div className="rounded-lg border border-bad/20 bg-bad-soft px-3 py-2 text-sm text-bad">{m.content}</div>
-                  ) : (
-                    <Markdown>{m.content}</Markdown>
-                  )}
-                </div>
+              <div key={i} className="min-w-0">
+                <div className="mb-2 text-xs text-subtle">{assistantLabel}</div>
+                {waiting && i === messages.length - 1 ? (
+                  <div className="typing flex gap-1 py-2 text-subtle" aria-label="Thinking">
+                    <span className="size-1.5 rounded-full bg-current" />
+                    <span className="size-1.5 rounded-full bg-current" />
+                    <span className="size-1.5 rounded-full bg-current" />
+                  </div>
+                ) : m.error ? (
+                  <div className="rounded-lg border border-bad/20 bg-bad-soft px-3 py-2 text-sm text-bad">{m.content}</div>
+                ) : (
+                  <Markdown>{m.content}</Markdown>
+                )}
               </div>
             ),
           )}
         </div>
       </div>
 
-      <div className="border-t border-line bg-surface px-4 pt-3 pb-4 sm:px-6">
+      <div className="px-4 pt-2 pb-4 sm:px-6">
         <div className="mx-auto max-w-2xl">
           {suggestions && messages.length === 0 && (
-            <div className="mb-2.5 flex flex-wrap gap-1.5">
+            <div className="mb-3 flex flex-wrap gap-2">
               {suggestions.map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
                   disabled={busy || disabled}
-                  className="rounded-full border border-line bg-surface px-3 py-1 text-xs text-muted transition-colors hover:border-line-strong hover:text-foreground disabled:opacity-50"
+                  className="h-8 rounded-lg border border-line bg-surface px-3 text-[13px] text-muted transition-colors duration-150 hover:border-line-strong hover:text-foreground disabled:opacity-50"
                 >
                   {s}
                 </button>
               ))}
             </div>
           )}
-          <div className="flex items-end gap-2 rounded-xl border border-line-strong bg-surface p-1.5 focus-within:border-foreground/40">
+          <div className="flex items-end gap-2 rounded-xl border border-line-strong bg-surface p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors duration-150 focus-within:border-foreground/30">
             {onFiles && (
               <>
                 <input
@@ -217,10 +215,11 @@ export function Chat({
                   type="button"
                   onClick={() => fileInput.current?.click()}
                   disabled={uploading}
-                  title="Attach documents (PDF, Word, PowerPoint, Confluence export, images)"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-black/[0.04] hover:text-foreground disabled:opacity-50"
+                  aria-label="Attach documents"
+                  title="Attach PDF, Word, PowerPoint, Confluence export or images"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-subtle transition-colors duration-150 hover:bg-raised hover:text-foreground disabled:opacity-50"
                 >
-                  {uploading ? <Spinner /> : <Paperclip className="size-4" />}
+                  {uploading ? <Spinner /> : <Paperclip className="size-4" strokeWidth={1.5} />}
                 </button>
               </>
             )}
@@ -237,27 +236,34 @@ export function Chat({
               rows={1}
               placeholder={placeholder}
               disabled={disabled}
-              className="max-h-40 min-h-8 flex-1 resize-none bg-transparent px-1.5 py-1.5 text-sm outline-none placeholder:text-subtle field-sizing-content"
+              className="max-h-40 min-h-8 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-subtle field-sizing-content"
             />
             <button
               onClick={() => send(input)}
               disabled={busy || !input.trim() || disabled}
               aria-label="Send"
               className={clsx(
-                "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                input.trim() && !busy ? "bg-foreground text-white" : "bg-line text-subtle",
+                "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
+                input.trim() && !busy ? "bg-foreground text-white" : "bg-raised text-subtle",
               )}
             >
-              {busy ? <Spinner /> : <ArrowUp className="size-4" />}
+              {busy ? <Spinner /> : <ArrowUp className="size-4" strokeWidth={1.5} />}
             </button>
           </div>
-          {onFiles && (
-            <div className="mt-1.5 px-1 text-[11px] text-subtle">
-              Drop in PDFs, slide decks, Word docs, Confluence exports or screenshots. Enter to send, Shift+Enter for a new line.
-            </div>
-          )}
+          <div className="mt-2 hidden items-center gap-1 px-1 text-xs text-subtle sm:flex">
+            <Kbd>Enter</Kbd> to send, <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> for a new line
+            {onFiles && <span className="ml-auto hidden sm:inline">Drop files anywhere in the chat</span>}
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function Kbd({ children }: { children: ReactNode }) {
+  return (
+    <kbd className="inline-flex h-5 items-center rounded-[4px] border border-line-strong bg-surface px-1 font-mono text-[11px] text-muted">
+      {children}
+    </kbd>
   );
 }
