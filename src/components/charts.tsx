@@ -6,10 +6,12 @@ import clsx from "clsx";
 import type { UseCase } from "@/lib/db";
 import { formatAUD } from "./ui";
 
-// Data ink is neutral; the accent marks only the one thing that needs the CoE's attention.
+// Ranked bars use soft register ink, the pipeline deepens from light to dark ink as cases
+// progress, and the value chart uses three validated series colours.
 const NEUTRAL = "var(--chart)";
-const STRONG = "#6b6b70";
 const ACCENT = "var(--accent)";
+const PIPELINE_RAMP = ["#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab"];
+const SERIES = { draft: "var(--series-shaping)", coe: "var(--series-coe)", approved: "var(--series-approved)" } as const;
 
 type Tip = { x: number; y: number; content: React.ReactNode } | null;
 
@@ -62,11 +64,11 @@ export function Funnel({ stages, highlight }: { stages: { label: string; count: 
             }
             onMouseLeave={() => setTip(null)}
           >
-            <span className={clsx("truncate text-[13px]", lead ? "text-accent" : "text-muted")}>{s.label}</span>
+            <span className={clsx("truncate text-[13px]", lead ? "font-medium text-accent" : "text-muted")}>{s.label}</span>
             <div className="h-4">
               <div
                 className="h-full rounded-[3px]"
-                style={{ width: `${Math.max(1.5, (s.count / max) * 100)}%`, background: lead ? ACCENT : NEUTRAL }}
+                style={{ width: `${Math.max(1.5, (s.count / max) * 100)}%`, background: PIPELINE_RAMP[i] ?? ACCENT }}
               />
             </div>
             <span className="text-right font-mono text-[13px] tabular-nums">{s.count}</span>
@@ -164,8 +166,7 @@ function Mark({ g, size = 10 }: { g: Group; size?: number }) {
         cx={r}
         cy={r}
         r={r - 1}
-        fill={g === "draft" ? "var(--surface)" : g === "coe" ? ACCENT : STRONG}
-        stroke={g === "draft" ? STRONG : "none"}
+        style={{ fill: g === "draft" ? "var(--surface)" : SERIES[g], stroke: g === "draft" ? SERIES.draft : "none" }}
         strokeWidth={1.5}
       />
     </svg>
@@ -201,19 +202,25 @@ export function PriorityMatrix({ useCases }: { useCases: UseCase[] }) {
         ))}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Estimated value against triage readiness">
-        <rect x={x(70)} y={pad.t} width={x(100) - x(70)} height={y(yMax / 2) - pad.t} fill="var(--raised)" />
-        <text x={x(70) + 8} y={pad.t + 16} className="fill-[var(--subtle)] text-[11px]">
+        <rect
+          x={x(70)}
+          y={pad.t}
+          width={x(100) - x(70)}
+          height={y(yMax / 2) - pad.t}
+          style={{ fill: "var(--accent-soft)" }}
+        />
+        <text x={x(70) + 8} y={pad.t + 16} className="fill-[var(--accent)] text-[11px]">
           Ready and high value
         </text>
         {yTicks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--line)" />
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} style={{ stroke: "var(--line)" }} />
             <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="fill-[var(--subtle)] font-mono text-[11px]">
               {formatAUD(t)}
             </text>
           </g>
         ))}
-        <line x1={x(70)} x2={x(70)} y1={pad.t} y2={H - pad.b} stroke="var(--line-strong)" strokeDasharray="2 3" />
+        <line x1={x(70)} x2={x(70)} y1={pad.t} y2={H - pad.b} style={{ stroke: "var(--line-strong)" }} strokeDasharray="2 3" />
         {[0, 25, 50, 70, 100].map((t) => (
           <text key={t} x={x(t)} y={H - pad.b + 16} textAnchor="middle" className="fill-[var(--subtle)] font-mono text-[11px]">
             {t}%
@@ -254,8 +261,10 @@ export function PriorityMatrix({ useCases }: { useCases: UseCase[] }) {
                 cx={x(p.readiness)}
                 cy={y(p.est_value!)}
                 r={5}
-                fill={g === "draft" ? "var(--surface)" : g === "coe" ? ACCENT : STRONG}
-                stroke={g === "draft" ? STRONG : "var(--surface)"}
+                style={{
+                  fill: g === "draft" ? "var(--surface)" : SERIES[g],
+                  stroke: g === "draft" ? SERIES.draft : "var(--surface)",
+                }}
                 strokeWidth={g === "draft" ? 1.5 : 2}
                 pointerEvents="none"
               />

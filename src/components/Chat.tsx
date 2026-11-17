@@ -244,7 +244,7 @@ export function Chat({
               aria-label="Send"
               className={clsx(
                 "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150",
-                input.trim() && !busy ? "bg-foreground text-white" : "bg-raised text-subtle",
+                input.trim() && !busy ? "bg-accent text-white" : "bg-raised text-subtle",
               )}
             >
               {busy ? <Spinner /> : <ArrowUp className="size-4" strokeWidth={1.5} />}

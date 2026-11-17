@@ -366,7 +366,7 @@ export function CoEUseCase() {
                 <ol className="relative space-y-4 border-l border-line pl-4">
                   {data.events.map((e) => (
                     <li key={e.id} className="relative">
-                      <span className="absolute top-1.5 -left-[20.5px] size-2 rounded-full border-2 border-surface bg-[#c4c4c8]" />
+                      <span className="absolute top-1.5 -left-[20.5px] size-2 rounded-full border-2 border-surface bg-[#b4bccb]" />
                       <div className="text-[13px]">
                         {e.kind === "created" ? (
                           "Created"

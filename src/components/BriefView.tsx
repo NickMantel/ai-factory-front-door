@@ -6,13 +6,13 @@ import { CaseId, SectionLabel, Tag, formatAUD } from "./ui";
 const READINESS_DOT: Record<string, string> = {
   available: "bg-good",
   partial: "bg-warn",
-  unknown: "bg-[#c4c4c8]",
+  unknown: "bg-[#b4bccb]",
   not_available: "bg-bad",
 };
 const SEVERITY_DOT: Record<string, string> = {
   high: "bg-bad",
   medium: "bg-warn",
-  low: "bg-[#c4c4c8]",
+  low: "bg-[#b4bccb]",
 };
 
 function Dot({ className }: { className: string }) {

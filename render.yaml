@@ -1,0 +1,19 @@
+# Render Blueprint: New > Blueprint in the Render dashboard, then pick this repo.
+# Render asks for the two secret values (Anthropic API key and access password) when it creates the service.
+# Free plan: the SQLite file lives on the instance's temporary disk, so it resets to the demo portfolio
+# whenever the service sleeps (about 15 minutes idle) or redeploys.
+services:
+  - type: web
+    name: ai-front-door
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ACCESS_PASSWORD
+        sync: false

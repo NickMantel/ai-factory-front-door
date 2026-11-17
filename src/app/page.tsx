@@ -236,7 +236,7 @@ export default function Home() {
               aria-label="Start"
               className={clsx(
                 "ml-auto flex size-8 items-center justify-center rounded-lg transition-colors duration-150",
-                ready && !starting ? "bg-foreground text-white" : "bg-raised text-subtle",
+                ready && !starting ? "bg-accent text-white" : "bg-raised text-subtle",
               )}
             >
               {starting ? <Spinner /> : <ArrowUp className="size-4" strokeWidth={1.5} />}

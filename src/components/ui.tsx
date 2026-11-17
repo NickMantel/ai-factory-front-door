@@ -27,7 +27,7 @@ export function Button({
       className={clsx(
         "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
         size === "sm" ? "h-8 px-3 text-[13px]" : "h-9 px-4 text-sm",
-        variant === "primary" && "bg-foreground text-white hover:bg-[#2b2b2b]",
+        variant === "primary" && "bg-accent text-white hover:bg-[var(--accent-hover)]",
         variant === "secondary" && "border border-line-strong bg-surface text-foreground hover:bg-raised",
         variant === "ghost" && "text-muted hover:bg-raised hover:text-foreground",
         className,
@@ -40,9 +40,9 @@ export function Button({
 
 // Status reads as text; the dot carries the state's meaning, never decoration.
 const STATUS_DOT: Record<string, string> = {
-  draft: "bg-[#c4c4c8]",
+  draft: "bg-[#b4bccb]",
   submitted: "bg-accent",
-  triage: "bg-accent",
+  triage: "bg-[#6250d6]",
   approved: "bg-good",
   in_delivery: "bg-good",
   live: "bg-good",
@@ -92,7 +92,7 @@ export function ReadinessMeter({ value, compact }: { value: number; compact?: bo
   return (
     <div className={clsx("relative h-1 rounded-full bg-[var(--chart-track)]", compact ? "w-16" : "w-full")}>
       <div
-        className={clsx("absolute inset-y-0 left-0 rounded-full", met ? "bg-accent" : "bg-[#8a8a90]")}
+        className={clsx("absolute inset-y-0 left-0 rounded-full", met ? "bg-good" : "bg-[var(--progress)]")}
         style={{ width: `${Math.max(2, value)}%` }}
       />
       <div
@@ -113,7 +113,7 @@ export function ScoreBar({ score }: { score: number }) {
   return (
     <div className="flex items-center gap-1" aria-label={`${score} out of 5`}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className={clsx("h-3 w-1 rounded-[1px]", i <= score ? "bg-foreground/70" : "bg-[#e4e4e7]")} />
+        <div key={i} className={clsx("h-3 w-1 rounded-[1px]", i <= score ? "bg-accent" : "bg-[#dfe4ec]")} />
       ))}
     </div>
   );

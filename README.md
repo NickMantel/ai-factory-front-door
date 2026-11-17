@@ -5,7 +5,7 @@ A demo of a self-service front door to an AI Centre of Excellence. Business unit
 ## Run it
 
 ```bash
-cp .env.example .env.local   # add ANTHROPIC_API_KEY
+cp .env.example .env         # add ANTHROPIC_API_KEY
 npm install
 npm run dev
 ```
@@ -13,6 +13,18 @@ npm run dev
 Open http://localhost:3000. The SQLite database (`data/frontdoor.db`) is created and seeded with 16 synthetic use cases on first run. **Reset demo data** on the CoE dashboard restores the seed.
 
 Requires Node 22.5+ (uses the built-in `node:sqlite`; no native modules).
+
+## Share it online (Render, free)
+
+1. **Create the service.** In the Render dashboard choose **New → Blueprint** and pick this repository. Render reads `render.yaml`, which sets Node 24 and the build and start commands.
+2. **Enter the two secrets** when Render asks:
+   - `ANTHROPIC_API_KEY`: your Anthropic API key.
+   - `ACCESS_PASSWORD`: a password to share with colleagues. Visitors are asked for a username and password; any username works.
+3. **Deploy.** When it's live, Render shows a URL like `https://ai-front-door.onrender.com`. Every `git push` to `main` redeploys.
+
+Free-plan limits: the service sleeps after about 15 minutes without visitors, and the first visit after that takes about 50 seconds. The SQLite file is on temporary disk, so **use cases created on Render reset to the demo portfolio whenever it sleeps or redeploys**. For data that persists, switch the service to the Starter plan, add a disk mounted at `/var/data`, and set `DATABASE_PATH=/var/data/frontdoor.db`.
+
+`/api/health` stays open so Render can check the service; everything else needs the password.
 
 ## The two views
 

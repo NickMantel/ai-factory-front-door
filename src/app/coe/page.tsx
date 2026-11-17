@@ -322,7 +322,7 @@ export default function CoEDashboard() {
               {filter && (
                 <button
                   onClick={() => setFilter(null)}
-                  className="flex h-6 items-center gap-1 rounded-md bg-raised px-2 text-xs text-foreground transition-colors duration-150 hover:bg-[#ebebec]"
+                  className="flex h-6 items-center gap-1 rounded-md bg-accent-soft px-2 text-xs text-accent transition-colors duration-150 hover:bg-[#dde6fa]"
                 >
                   {filterLabel} <X className="size-3" strokeWidth={1.5} />
                 </button>
