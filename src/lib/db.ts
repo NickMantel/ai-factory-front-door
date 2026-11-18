@@ -1,10 +1,11 @@
 import "server-only";
 import { DatabaseSync } from "node:sqlite";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Assessment, Brief, Insights } from "./schemas";
-import type { StatusKey } from "./rubric";
-import { seedDatabase } from "./seed";
+import type { StatusKey, Visibility } from "./rubric";
+import { applySeedAccess, seedDatabase } from "./seed";
 
 const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "frontdoor.db");
 
@@ -57,7 +58,30 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS collaborators (
+  use_case_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT,
+  role TEXT NOT NULL DEFAULT 'editor',
+  added_by TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (use_case_id, email)
+);
+CREATE TABLE IF NOT EXISTS renamed (old_id TEXT PRIMARY KEY, new_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS people (email TEXT PRIMARY KEY, name TEXT NOT NULL, business_unit TEXT, last_seen TEXT NOT NULL);
 `;
+
+/** Columns added after the first release; added in place so existing databases keep their data. */
+function migrate(conn: DatabaseSync) {
+  const add = (table: string, column: string, def: string) => {
+    const cols = conn.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+  };
+  add("use_cases", "owner_email", "TEXT");
+  add("use_cases", "visibility", "TEXT NOT NULL DEFAULT 'private'");
+  add("messages", "author", "TEXT");
+  applySeedAccess(conn);
+}
 
 const g = globalThis as unknown as { __frontdoorDb?: DatabaseSync };
 
@@ -69,6 +93,7 @@ export function db(): DatabaseSync {
     conn.exec(SCHEMA);
     g.__frontdoorDb = conn;
     const { n } = conn.prepare("SELECT COUNT(*) AS n FROM use_cases").get() as { n: number };
+    migrate(conn);
     if (n === 0) seedDatabase(conn);
   }
   return g.__frontdoorDb;
@@ -76,7 +101,10 @@ export function db(): DatabaseSync {
 
 export function resetDatabase() {
   const conn = db();
-  conn.exec("DELETE FROM use_cases; DELETE FROM messages; DELETE FROM documents; DELETE FROM events; DELETE FROM kv;");
+  // People who have signed in are kept, so their sessions and names survive a reset.
+  conn.exec(
+    "DELETE FROM use_cases; DELETE FROM messages; DELETE FROM documents; DELETE FROM events; DELETE FROM kv; DELETE FROM collaborators; DELETE FROM renamed;",
+  );
   seedDatabase(conn);
 }
 
@@ -99,6 +127,8 @@ export type UseCaseRow = {
   created_at: string;
   updated_at: string;
   submitted_at: string | null;
+  owner_email: string | null;
+  visibility: Visibility;
 };
 
 export type UseCase = Omit<UseCaseRow, "patterns" | "assessment" | "brief" | "ready"> & {
@@ -108,7 +138,14 @@ export type UseCase = Omit<UseCaseRow, "patterns" | "assessment" | "brief" | "re
   brief: Brief | null;
 };
 
-export type Message = { id: number; role: "user" | "assistant"; content: string; created_at: string };
+export type Message = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  author: string | null;
+  created_at: string;
+};
+export type Collaborator = { email: string; name: string | null; role: "owner" | "editor"; created_at: string };
 export type DocumentMeta = {
   id: number;
   filename: string;
@@ -148,29 +185,94 @@ export function listUseCases(): UseCase[] {
   return rows.map(hydrate);
 }
 
+/** Everything that has been submitted: what the AI CoE sees. Private drafts are excluded. */
+export function listRecords(): UseCase[] {
+  return listUseCases().filter((u) => u.status !== "draft");
+}
+
+/** Use cases the person owns or has been added to, drafts included. */
+export function listForMember(email: string): UseCase[] {
+  const rows = db()
+    .prepare(
+      `SELECT u.* FROM use_cases u JOIN collaborators c ON c.use_case_id = u.id
+       WHERE c.email = ? ORDER BY u.updated_at DESC`,
+    )
+    .all(email) as UseCaseRow[];
+  return rows.map(hydrate);
+}
+
+/** Submitted use cases their owners opened to the whole organisation. */
+export function listPublic(): UseCase[] {
+  return listRecords().filter((u) => u.visibility === "public");
+}
+
 export function getUseCase(id: string): UseCase | null {
   const row = db().prepare("SELECT * FROM use_cases WHERE id = ?").get(id) as UseCaseRow | undefined;
   return row ? hydrate(row) : null;
 }
 
+/** Drafts get a case number when submitted; old links follow the rename. */
+export function renamedTo(id: string): string | null {
+  const row = db().prepare("SELECT new_id FROM renamed WHERE old_id = ?").get(id) as { new_id: string } | undefined;
+  return row?.new_id ?? null;
+}
+
 export function nextUseCaseId(conn: DatabaseSync = db()): string {
   const row = conn
-    .prepare("SELECT MAX(CAST(SUBSTR(id, 4) AS INTEGER)) AS n FROM use_cases")
+    .prepare("SELECT MAX(CAST(SUBSTR(id, 4) AS INTEGER)) AS n FROM use_cases WHERE id LIKE 'UC-%'")
     .get() as { n: number | null };
   return `UC-${(row.n ?? 1000) + 1}`;
 }
 
-export function createUseCase(input: { title: string; business_unit: string; submitter: string }): UseCase {
-  const id = nextUseCaseId();
+const draftId = () => `D-${randomBytes(4).toString("hex").toUpperCase()}`;
+
+export function createDraft(input: { business_unit: string; owner: { email: string; name: string } }): UseCase {
+  const id = draftId();
   const ts = now();
   db()
     .prepare(
-      `INSERT INTO use_cases (id, title, business_unit, submitter, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'draft', ?, ?)`,
+      `INSERT INTO use_cases (id, title, business_unit, submitter, owner_email, visibility, status, created_at, updated_at)
+       VALUES (?, 'Untitled use case', ?, ?, ?, 'private', 'draft', ?, ?)`,
     )
-    .run(id, input.title, input.business_unit, input.submitter, ts, ts);
-  addEvent(id, { kind: "created", to_status: "draft", actor: input.submitter });
+    .run(id, input.business_unit, input.owner.name, input.owner.email, ts, ts);
+  addCollaborator(id, { email: input.owner.email, name: input.owner.name, role: "owner", added_by: input.owner.email });
+  addEvent(id, { kind: "created", to_status: "draft", actor: input.owner.name });
   return getUseCase(id)!;
+}
+
+/**
+ * Turns a private draft into a record the AI CoE can see, with a case number. Returns the
+ * (possibly new) id. Records already registered are left as they are.
+ */
+export function registerUseCase(id: string, actor: string, visibility: Visibility): string {
+  const uc = getUseCase(id);
+  if (!uc) throw new Error("Use case not found");
+  const conn = db();
+  conn.prepare("UPDATE use_cases SET visibility = ?, updated_at = ? WHERE id = ?").run(visibility, now(), id);
+  if (uc.status !== "draft") return id;
+
+  const newId = id.startsWith("D-") ? nextUseCaseId() : id;
+  conn.exec("BEGIN");
+  try {
+    if (newId !== id) {
+      conn.prepare("UPDATE use_cases SET id = ? WHERE id = ?").run(newId, id);
+      for (const t of ["messages", "documents", "events", "collaborators"]) {
+        conn.prepare(`UPDATE ${t} SET use_case_id = ? WHERE use_case_id = ?`).run(newId, id);
+      }
+      conn.prepare("INSERT OR REPLACE INTO renamed (old_id, new_id) VALUES (?, ?)").run(id, newId);
+    }
+    conn.prepare("UPDATE use_cases SET status = 'shaping', updated_at = ? WHERE id = ?").run(now(), newId);
+    addEvent(newId, { kind: "status", from_status: "draft", to_status: "shaping", actor, note: "Registered with the AI CoE" });
+    conn.exec("COMMIT");
+  } catch (err) {
+    conn.exec("ROLLBACK");
+    throw err;
+  }
+  return newId;
+}
+
+export function setVisibility(id: string, visibility: Visibility) {
+  db().prepare("UPDATE use_cases SET visibility = ?, updated_at = ? WHERE id = ?").run(visibility, now(), id);
 }
 
 export function saveAssessment(
@@ -236,15 +338,21 @@ export function updateStatus(id: string, status: StatusKey, note: string | null,
 export function listMessages(useCaseId: string, channel: Channel): Message[] {
   return db()
     .prepare(
-      "SELECT id, role, content, created_at FROM messages WHERE use_case_id = ? AND channel = ? ORDER BY id",
+      "SELECT id, role, content, author, created_at FROM messages WHERE use_case_id = ? AND channel = ? ORDER BY id",
     )
     .all(useCaseId, channel) as Message[];
 }
 
-export function addMessage(useCaseId: string, channel: Channel, role: "user" | "assistant", content: string) {
+export function addMessage(
+  useCaseId: string,
+  channel: Channel,
+  role: "user" | "assistant",
+  content: string,
+  author: string | null = null,
+) {
   db()
-    .prepare("INSERT INTO messages (use_case_id, channel, role, content, created_at) VALUES (?, ?, ?, ?, ?)")
-    .run(useCaseId, channel, role, content, now());
+    .prepare("INSERT INTO messages (use_case_id, channel, role, content, author, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(useCaseId, channel, role, content, author, now());
   if (channel === "intake") {
     db().prepare("UPDATE use_cases SET updated_at = ? WHERE id = ?").run(now(), useCaseId);
   }
@@ -301,6 +409,63 @@ export function listEvents(useCaseId: string): Event[] {
   return db()
     .prepare("SELECT id, kind, from_status, to_status, note, actor, created_at FROM events WHERE use_case_id = ? ORDER BY id")
     .all(useCaseId) as Event[];
+}
+
+// ---------- Collaborators ----------
+
+export function listCollaborators(useCaseId: string): Collaborator[] {
+  return db()
+    .prepare(
+      `SELECT c.email, COALESCE(p.name, c.name) AS name, c.role, c.created_at
+       FROM collaborators c LEFT JOIN people p ON p.email = c.email
+       WHERE c.use_case_id = ? ORDER BY c.role = 'owner' DESC, c.created_at`,
+    )
+    .all(useCaseId) as Collaborator[];
+}
+
+export function memberRole(useCaseId: string, email: string): Collaborator["role"] | null {
+  const row = db()
+    .prepare("SELECT role FROM collaborators WHERE use_case_id = ? AND email = ?")
+    .get(useCaseId, email) as { role: Collaborator["role"] } | undefined;
+  return row?.role ?? null;
+}
+
+export function addCollaborator(
+  useCaseId: string,
+  c: { email: string; name?: string | null; role?: Collaborator["role"]; added_by: string },
+) {
+  db()
+    .prepare(
+      `INSERT INTO collaborators (use_case_id, email, name, role, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(use_case_id, email) DO NOTHING`,
+    )
+    .run(useCaseId, c.email, c.name ?? null, c.role ?? "editor", c.added_by, now());
+}
+
+export function removeCollaborator(useCaseId: string, email: string) {
+  db().prepare("DELETE FROM collaborators WHERE use_case_id = ? AND email = ? AND role != 'owner'").run(useCaseId, email);
+}
+
+/**
+ * On sign-in: remember the person, fill in their name wherever they were added by email, and adopt
+ * use cases created before sign-in existed that carry their name.
+ */
+export function recordSignIn(user: { email: string; name: string; bu: string }) {
+  const conn = db();
+  conn
+    .prepare(
+      `INSERT INTO people (email, name, business_unit, last_seen) VALUES (?, ?, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET name = excluded.name, business_unit = excluded.business_unit, last_seen = excluded.last_seen`,
+    )
+    .run(user.email, user.name, user.bu, now());
+  conn.prepare("UPDATE collaborators SET name = ? WHERE email = ?").run(user.name, user.email);
+  const orphans = conn
+    .prepare("SELECT id FROM use_cases WHERE owner_email IS NULL AND lower(submitter) = lower(?)")
+    .all(user.name) as { id: string }[];
+  for (const { id } of orphans) {
+    conn.prepare("UPDATE use_cases SET owner_email = ? WHERE id = ?").run(user.email, id);
+    addCollaborator(id, { email: user.email, name: user.name, role: "owner", added_by: user.email });
+  }
 }
 
 // ---------- Portfolio insights ----------

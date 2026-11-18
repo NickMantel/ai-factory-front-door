@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { ChevronDown } from "lucide-react";
+import type { User } from "@/lib/session";
+import { signOut, useSession } from "./session";
 
 export function AppHeader() {
   const [health, setHealth] = useState<{ claude: boolean; model: string } | null>(null);
+  const user = useSession()?.user;
 
   useEffect(() => {
     fetch("/api/health")
@@ -36,9 +40,13 @@ export function AppHeader() {
               {health.model}
             </span>
           )}
-          <Suspense fallback={<ModeToggle coe={false} />}>
-            <RoutedModeToggle />
-          </Suspense>
+          {/* Only the AI CoE moves between views; business units only ever see their own. */}
+          {user?.role === "coe" && (
+            <Suspense fallback={<ModeToggle coe={false} />}>
+              <RoutedModeToggle />
+            </Suspense>
+          )}
+          {user && <PersonMenu user={user} />}
         </div>
       </div>
     </header>
@@ -64,5 +72,48 @@ function ModeToggle({ coe }: { coe: boolean }) {
         AI CoE
       </Link>
     </nav>
+  );
+}
+
+function PersonMenu({ user }: { user: User }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex h-8 items-center gap-1 rounded-lg px-2 text-[13px] text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
+      >
+        <span className="max-w-40 truncate">{user.name}</span>
+        <ChevronDown className="size-4" strokeWidth={1.5} />
+      </button>
+      {open && (
+        <div className="enter absolute right-0 z-40 mt-1 w-64 rounded-xl border border-line bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
+          <div className="px-3 py-2">
+            <div className="truncate text-sm">{user.name}</div>
+            <div className="truncate text-xs text-subtle">{user.email}</div>
+            <div className="mt-1 truncate text-xs text-subtle">{user.role === "coe" ? "AI CoE team" : user.bu}</div>
+          </div>
+          <div className="my-1 h-px bg-line" />
+          <button
+            onClick={() => signOut()}
+            className="flex h-8 w-full items-center rounded-lg px-3 text-left text-[13px] transition-colors duration-150 hover:bg-raised"
+          >
+            Switch person
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

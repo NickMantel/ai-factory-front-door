@@ -3,7 +3,7 @@ import {
   documentTexts,
   getUseCase,
   listMessages,
-  listUseCases,
+  listRecords,
   saveAssessment,
   saveBrief,
   saveInsights,
@@ -16,7 +16,8 @@ import { DIMENSIONS, computeReadiness, meetsThreshold } from "./rubric";
 export async function runAssessment(id: string) {
   const uc = getUseCase(id);
   if (!uc) throw new Error("Use case not found");
-  const all = listUseCases();
+  // Similar use cases come from submitted records only; other people's drafts are private.
+  const all = listRecords();
   const a = await generateObject({
     schema: AssessmentSchema,
     system: assessSystem(all, id),
@@ -34,26 +35,28 @@ export async function runAssessment(id: string) {
   const scores = a.dimensions.map((d) => ({ key: d.key, score: d.score }));
   const readiness = computeReadiness(scores);
   // Keep a title the submitter chose themselves; adopt the model's once the BU has said enough.
-  saveAssessment(id, a, readiness, meetsThreshold(readiness, scores), { keepTitle: uc.status !== "draft" });
+  saveAssessment(id, a, readiness, meetsThreshold(readiness, scores), {
+    keepTitle: !["draft", "shaping"].includes(uc.status),
+  });
   return getUseCase(id)!;
 }
 
-export async function submitUseCase(id: string) {
+export async function submitUseCase(id: string, actor: string) {
   const uc = getUseCase(id);
   if (!uc) throw new Error("Use case not found");
   const brief = await generateObject({
     schema: BriefSchema,
-    system: briefSystem(listUseCases(), id),
+    system: briefSystem(listRecords(), id),
     prompt: briefPrompt(uc, listMessages(id, "intake"), documentTexts(id)),
   });
-  saveBrief(id, brief, uc.submitter);
+  saveBrief(id, brief, actor);
   return getUseCase(id)!;
 }
 
 export async function generateInsights() {
   const insights = await generateObject({
     schema: InsightsSchema,
-    system: coePortfolioSystem(listUseCases()),
+    system: coePortfolioSystem(listRecords()),
     prompt: insightsPrompt(),
   });
   saveInsights(insights);

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import clsx from "clsx";
 import { ArrowLeft, Download, FileText, Printer } from "lucide-react";
-import type { DocumentMeta, Event, Message, UseCase } from "@/lib/db";
+import type { Collaborator, DocumentMeta, Event, Message, UseCase } from "@/lib/db";
 import { DIMENSIONS, STATUSES, labelOf, type StatusKey } from "@/lib/rubric";
 import { BriefView, briefToMarkdown, downloadMarkdown } from "@/components/BriefView";
 import { Copilot } from "@/components/Copilot";
@@ -21,6 +21,7 @@ import {
   Spinner,
   StatusPill,
   Tag,
+  VisibilityLabel,
   formatAUD,
 } from "@/components/ui";
 
@@ -29,6 +30,7 @@ type Data = {
   messages: Message[];
   documents: DocumentMeta[];
   events: Event[];
+  collaborators: Collaborator[];
 };
 
 export function CoEUseCase() {
@@ -36,7 +38,7 @@ export function CoEUseCase() {
   const [data, setData] = useState<Data | null>(null);
   const [all, setAll] = useState<UseCase[]>([]);
   const [tab, setTab] = useState<"brief" | "assessment" | "transcript">("brief");
-  const [status, setStatus] = useState<StatusKey>("draft");
+  const [status, setStatus] = useState<StatusKey>("shaping");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [copilot, setCopilot] = useState(false);
@@ -45,10 +47,10 @@ export function CoEUseCase() {
     () =>
       Promise.all([
         fetch(`/api/use-cases/${id}`).then((r) => r.json()),
-        fetch("/api/use-cases").then((r) => r.json()),
+        fetch("/api/use-cases?scope=portfolio").then((r) => r.json()),
       ]).then(([d, l]) => {
         setData(d);
-        setAll(l.useCases);
+        setAll(l.useCases ?? []);
         if (d.useCase) {
           setStatus(d.useCase.status);
           if (!d.useCase.brief) setTab("assessment");
@@ -242,7 +244,7 @@ export function CoEUseCase() {
                       {data.messages.map((m) => (
                         <div key={m.id}>
                           <div className="mb-2 text-xs text-subtle">
-                            {m.role === "user" ? uc.submitter : "AI Front Door"}
+                            {m.role === "user" ? (m.author ?? uc.submitter) : "AI Front Door"}
                           </div>
                           {m.role === "user" ? (
                             <div className="rounded-xl bg-raised px-4 py-3 text-sm leading-[22px] whitespace-pre-wrap">
@@ -268,7 +270,7 @@ export function CoEUseCase() {
                   onChange={(e) => setStatus(e.target.value as StatusKey)}
                   className="h-9 w-full rounded-lg border border-line-strong bg-surface px-2 text-sm"
                 >
-                  {STATUSES.map((s) => (
+                  {STATUSES.filter((s) => s.key !== "draft").map((s) => (
                     <option key={s.key} value={s.key}>
                       {s.label}
                     </option>
@@ -347,6 +349,21 @@ export function CoEUseCase() {
                 </Card>
               )}
 
+              <Card className="p-5">
+                <div className="mb-2 flex items-center justify-between">
+                  <SectionLabel>Business unit team</SectionLabel>
+                  <VisibilityLabel visibility={uc.visibility} />
+                </div>
+                <ul className="space-y-2">
+                  {data.collaborators.map((c) => (
+                    <li key={c.email} className="flex items-baseline gap-2 text-[13px]">
+                      <span className="min-w-0 flex-1 truncate">{c.name ?? c.email}</span>
+                      <span className="shrink-0 text-xs text-subtle">{c.role === "owner" ? "Owner" : "Collaborator"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+
               {data.documents.length > 0 && (
                 <Card className="p-5">
                   <SectionLabel className="mb-2">Source documents</SectionLabel>
@@ -369,7 +386,7 @@ export function CoEUseCase() {
                       <span className="absolute top-1.5 -left-[20.5px] size-2 rounded-full border-2 border-surface bg-[#b4bccb]" />
                       <div className="text-[13px]">
                         {e.kind === "created" ? (
-                          "Created"
+                          "Draft started"
                         ) : (
                           <>
                             Moved to {labelOf.status(e.to_status ?? "")}

@@ -125,7 +125,7 @@ const SPECS: Spec[] = [
     title: "Store merchandising compliance from photos",
     bu: "Retail Network",
     submitter: "Hannah Walsh",
-    status: "draft",
+    status: "shaping",
     daysAgo: 5,
     scores: [3, 2, 3, 2, 3, 2, 2, 2],
     patterns: ["computer_vision"],
@@ -151,7 +151,7 @@ const SPECS: Spec[] = [
     title: "Fleet vehicle damage inspection",
     bu: "Fleet & Network Planning",
     submitter: "Marcus Bell",
-    status: "draft",
+    status: "shaping",
     daysAgo: 2,
     scores: [3, 2, 3, 3, 3, 2, 2, 3],
     patterns: ["computer_vision"],
@@ -358,7 +358,7 @@ const SPECS: Spec[] = [
     title: "Small business campaign copy generator",
     bu: "Marketing & Growth",
     submitter: "Chloe Martin",
-    status: "draft",
+    status: "shaping",
     daysAgo: 1,
     scores: [2, 1, 2, 2, 2, 1, 1, 1],
     patterns: ["generative_content"],
@@ -519,7 +519,7 @@ export function seedDatabase(conn: DatabaseSync) {
     "INSERT INTO events (use_case_id, kind, from_status, to_status, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
   const insertMsg = conn.prepare(
-    "INSERT INTO messages (use_case_id, channel, role, content, created_at) VALUES (?, 'intake', ?, ?, ?)",
+    "INSERT INTO messages (use_case_id, channel, role, content, author, created_at) VALUES (?, 'intake', ?, ?, ?, ?)",
   );
 
   SPECS.forEach((s, i) => {
@@ -529,7 +529,7 @@ export function seedDatabase(conn: DatabaseSync) {
     const scores = assessment.dimensions.map((d) => ({ key: d.key, score: d.score }));
     const readiness = computeReadiness(scores);
     const ready = meetsThreshold(readiness, scores);
-    const submitted = s.status !== "draft";
+    const submitted = s.status !== "draft" && s.status !== "shaping";
     const brief = submitted
       ? buildBrief(s, similar.map((sid) => SPECS[ids.indexOf(sid)].title))
       : null;
@@ -547,6 +547,9 @@ export function seedDatabase(conn: DatabaseSync) {
     const terminal = s.status === "parked" || s.status === "declined";
     const target = terminal ? "triage" : s.status;
     const upto = LIFECYCLE.indexOf(target);
+    if (s.status === "shaping") {
+      insertEvent.run(id, "status", "draft", "shaping", "Registered with the AI CoE", s.submitter, iso(Math.max(0, s.daysAgo - 1)));
+    }
     for (let k = 1; k <= upto; k++) {
       const at = iso(Math.max(0, s.daysAgo - 2 - (k - 1) * 7));
       insertEvent.run(id, "status", LIFECYCLE[k - 1], LIFECYCLE[k], k === 1 ? "Submitted via AI Front Door" : null, k === 1 ? s.submitter : "AI CoE", at);
@@ -556,6 +559,46 @@ export function seedDatabase(conn: DatabaseSync) {
         s.status === "parked" ? "Parked pending enterprise legal-tech procurement." : "Declined: insufficient labelled data; revisit after claims data uplift.",
         "AI CoE", iso(Math.max(0, s.daysAgo - 20)));
     }
-    s.transcript?.forEach(([role, content], k) => insertMsg.run(id, role, content, iso(s.daysAgo, k * 0.05)));
+    s.transcript?.forEach(([role, content], k) =>
+      insertMsg.run(id, role, content, role === "user" ? s.submitter : null, iso(s.daysAgo, k * 0.05)),
+    );
+  });
+  applySeedAccess(conn);
+}
+
+// Who owns each demo use case, who they work with, and which ones are open to the organisation.
+export const emailFor = (name: string) => `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`;
+const PUBLIC_TITLES = new Set([
+  "Unreadable address label resolution",
+  "Contact centre knowledge assistant",
+  "Supplier invoice exception handling",
+  "Complaint classification and routing",
+]);
+const TEAMS: Record<string, string[]> = {
+  "Damaged parcel detection at sortation": ["Tom Nguyen", "Grace Liu"],
+  "Store merchandising compliance from photos": ["Daniel Okafor"],
+  "Call summarisation and quality assurance": ["Aisha Rahman"],
+  "Peak-season parcel volume forecasting": ["Marcus Bell"],
+};
+
+/** Adds owners, collaborators and visibility to demo use cases, including ones seeded before sharing existed. */
+export function applySeedAccess(conn: DatabaseSync) {
+  const ts = new Date().toISOString();
+  const addMember = conn.prepare(
+    `INSERT INTO collaborators (use_case_id, email, name, role, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(use_case_id, email) DO NOTHING`,
+  );
+  SPECS.forEach((s, i) => {
+    const id = `UC-${1001 + i}`;
+    const row = conn.prepare("SELECT owner_email, status FROM use_cases WHERE id = ?").get(id) as
+      | { owner_email: string | null; status: string }
+      | undefined;
+    if (!row || row.owner_email) return;
+    const owner = emailFor(s.submitter);
+    conn
+      .prepare("UPDATE use_cases SET owner_email = ?, visibility = ?, status = ? WHERE id = ?")
+      .run(owner, PUBLIC_TITLES.has(s.title) ? "public" : "private", row.status === "draft" ? "shaping" : row.status, id);
+    addMember.run(id, owner, s.submitter, "owner", owner, ts);
+    for (const name of TEAMS[s.title] ?? []) addMember.run(id, emailFor(name), name, "editor", owner, ts);
   });
 }

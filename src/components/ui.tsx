@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
+import { Globe, Lock } from "lucide-react";
 import { READINESS_THRESHOLD, labelOf } from "@/lib/rubric";
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
@@ -41,6 +42,7 @@ export function Button({
 // Status reads as text; the dot carries the state's meaning, never decoration.
 const STATUS_DOT: Record<string, string> = {
   draft: "bg-[#b4bccb]",
+  shaping: "bg-[var(--progress)]",
   submitted: "bg-accent",
   triage: "bg-[#6250d6]",
   approved: "bg-good",
@@ -59,16 +61,30 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
-/** The signature: case numbers set as small mono docket tabs. */
+/** The signature: case numbers set as small mono docket tabs. Drafts have no number yet, so their tab is dashed. */
 export function CaseId({ id, className }: { id: string; className?: string }) {
+  const draft = id.startsWith("D-");
   return (
     <span
       className={clsx(
-        "inline-flex h-5 shrink-0 items-center rounded-[4px] border border-line-strong bg-surface px-1.5 font-mono text-[11px] leading-none whitespace-nowrap text-muted tabular-nums",
+        "inline-flex h-5 shrink-0 items-center rounded-[4px] border bg-surface px-1.5 font-mono text-[11px] leading-none whitespace-nowrap text-muted tabular-nums",
+        draft ? "border-dashed border-foreground/25" : "border-line-strong",
         className,
       )}
+      title={draft ? "Private draft: gets a case number when submitted" : undefined}
     >
-      {id}
+      {draft ? "Draft" : id}
+    </span>
+  );
+}
+
+/** Who can see a use case, as an icon and a word. */
+export function VisibilityLabel({ visibility, className }: { visibility: string; className?: string }) {
+  const Icon = visibility === "public" ? Globe : Lock;
+  return (
+    <span className={clsx("inline-flex items-center gap-1 text-xs whitespace-nowrap text-subtle", className)}>
+      <Icon className="size-3" strokeWidth={1.5} aria-hidden />
+      {visibility === "public" ? "Organisation" : "Private"}
     </span>
   );
 }

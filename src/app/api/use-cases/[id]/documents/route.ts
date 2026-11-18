@@ -1,4 +1,5 @@
-import { addDocument, deleteDocument, getUseCase, listDocuments } from "@/lib/db";
+import { guardUseCase } from "@/lib/access";
+import { addDocument, deleteDocument, listDocuments } from "@/lib/db";
 import { friendlyError } from "@/lib/claude";
 import { extractDocument } from "@/lib/extract";
 
@@ -6,7 +7,8 @@ const MAX_BYTES = 25 * 1024 * 1024;
 
 export async function POST(req: Request, ctx: RouteContext<"/api/use-cases/[id]/documents">) {
   const { id } = await ctx.params;
-  if (!getUseCase(id)) return Response.json({ error: "Not found" }, { status: 404 });
+  const g = await guardUseCase(id, "edit");
+  if (g instanceof Response) return g;
   const form = await req.formData();
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   const errors: string[] = [];
@@ -29,6 +31,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/use-cases/[id]/
 
 export async function DELETE(req: Request, ctx: RouteContext<"/api/use-cases/[id]/documents">) {
   const { id } = await ctx.params;
+  const g = await guardUseCase(id, "edit");
+  if (g instanceof Response) return g;
   const docId = Number(new URL(req.url).searchParams.get("docId"));
   deleteDocument(id, docId);
   return Response.json({ documents: listDocuments(id) });

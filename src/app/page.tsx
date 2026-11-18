@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import clsx from "clsx";
-import { ArrowUp, FileText, Paperclip, X } from "lucide-react";
+import { ArrowUp, FileText, Paperclip, Users, X } from "lucide-react";
 import type { UseCase } from "@/lib/db";
 import { BUSINESS_UNITS } from "@/lib/rubric";
 import { firstMessageKey } from "@/components/Workspace";
-import { CaseId, Percent, SectionLabel, Spinner, StatusPill, timeAgo } from "@/components/ui";
+import { useSession } from "@/components/session";
+import { CaseId, Percent, SectionLabel, Spinner, StatusPill, VisibilityLabel, timeAgo } from "@/components/ui";
 
-const PROFILE_KEY = "frontdoor:profile";
-type Profile = { name: string; bu: string };
+type Mine = UseCase & { team: number; myRole: "owner" | "editor" | null };
+type Shared = Pick<UseCase, "id" | "title" | "business_unit" | "submitter" | "status" | "readiness" | "one_liner" | "updated_at">;
 
 const STARTERS = [
   "We spend hours manually checking photos for damage",
@@ -21,51 +22,42 @@ const STARTERS = [
 
 export default function Home() {
   const router = useRouter();
-  const [editingProfile, setEditingProfile] = useState(true);
-  const [name, setName] = useState("");
-  const [bu, setBu] = useState("");
+  const user = useSession()?.user;
+  const [coeBu, setCoeBu] = useState("");
   const [idea, setIdea] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mine, setMine] = useState<UseCase[]>([]);
+  const [mine, setMine] = useState<Mine[]>([]);
+  const [shared, setShared] = useState<Shared[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    let saved: Profile | null = null;
-    try {
-      saved = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "null");
-    } catch {}
-    if (!saved?.name || !saved.bu) return;
-    // Browser storage is only readable after hydration, so this sync is intentional.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setName(saved.name);
-    setBu(saved.bu);
-    setEditingProfile(false);
-    const qs = new URLSearchParams({ submitter: saved.name, business_unit: saved.bu });
-    fetch(`/api/use-cases?${qs}`)
+    fetch("/api/use-cases")
       .then((r) => r.json())
-      .then((d) => setMine(d.useCases));
+      .then((d) => setMine(d.useCases ?? []))
+      .catch(() => {});
+    fetch("/api/use-cases?scope=shared")
+      .then((r) => r.json())
+      .then((d) => setShared(d.useCases ?? []))
+      .catch(() => {});
   }, []);
 
-  const ready = name.trim() && bu && (idea.trim() || files.length);
+  // The AI CoE can start a use case too, on behalf of a business unit.
+  const needsBu = user?.role === "coe";
+  const ready = user && (!needsBu || coeBu) && (idea.trim() || files.length);
 
   async function start() {
     if (!ready || starting) return;
     setStarting(true);
     setError(null);
     try {
-      const me = { name: name.trim(), bu };
-      try {
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(me));
-      } catch {}
-
       const res = await fetch("/api/use-cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submitter: me.name, business_unit: me.bu }),
+        body: JSON.stringify({ business_unit: coeBu }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
@@ -111,8 +103,9 @@ export default function Home() {
           </p>
           <p className="mt-4 text-muted">
             Attach anything you already have, like a Confluence page, slide deck, PDF or screenshot. As we talk,
-            I&apos;ll score how ready the use case is for triage and point out what to sharpen. Once it&apos;s ready,
-            submit it and the CoE receives a standard brief instead of starting with discovery meetings.
+            I&apos;ll score how ready the use case is for triage and point out what to sharpen. It stays a private
+            draft for you and anyone you add until you submit it: as work in progress, or for triage with a standard
+            brief.
           </p>
         </div>
 
@@ -135,26 +128,16 @@ export default function Home() {
             addFiles(e.dataTransfer.files);
           }}
         >
-          {editingProfile ? (
-            <div className="flex flex-col gap-2 border-b border-line p-2 sm:flex-row sm:items-center">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                aria-label="Your name"
-                className="h-8 flex-1 rounded-md bg-raised px-3 text-sm outline-none placeholder:text-subtle focus:ring-1 focus:ring-foreground/20"
-              />
+          <div className="flex h-10 items-center gap-2 border-b border-line px-4 text-[13px] text-muted">
+            {needsBu ? (
               <select
-                value={bu}
-                onChange={(e) => setBu(e.target.value)}
+                value={coeBu}
+                onChange={(e) => setCoeBu(e.target.value)}
                 aria-label="Business unit"
-                className={clsx(
-                  "h-8 flex-1 rounded-md bg-raised px-2 text-sm outline-none focus:ring-1 focus:ring-foreground/20",
-                  !bu && "text-subtle",
-                )}
+                className={clsx("-ml-1 h-7 rounded-md bg-transparent px-1 outline-none hover:bg-raised", !coeBu && "text-subtle")}
               >
                 <option value="" disabled>
-                  Your business unit
+                  On behalf of which business unit?
                 </option>
                 {BUSINESS_UNITS.map((b) => (
                   <option key={b} className="text-foreground">
@@ -162,20 +145,15 @@ export default function Home() {
                   </option>
                 ))}
               </select>
-            </div>
-          ) : (
-            <div className="flex h-10 items-center gap-2 border-b border-line px-4 text-[13px] text-muted">
-              <span>
-                <span className="text-foreground">{name}</span> · {bu}
+            ) : (
+              <span className="truncate">
+                <span className="text-foreground">{user?.name}</span> · {user?.bu}
               </span>
-              <button
-                onClick={() => setEditingProfile(true)}
-                className="ml-auto text-subtle underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
-              >
-                Change
-              </button>
-            </div>
-          )}
+            )}
+            <span className="ml-auto shrink-0">
+              <VisibilityLabel visibility="private" />
+            </span>
+          </div>
 
           <textarea
             ref={textarea}
@@ -245,8 +223,8 @@ export default function Home() {
         </div>
 
         {error && <div className="mt-2 text-xs text-bad">{error}</div>}
-        {!error && editingProfile && idea.trim() && (!name.trim() || !bu) && (
-          <div className="mt-2 text-xs text-muted">Add your name and business unit so the CoE knows who to follow up with</div>
+        {!error && needsBu && idea.trim() && !coeBu && (
+          <div className="mt-2 text-xs text-muted">Choose the business unit this use case belongs to</div>
         )}
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -273,13 +251,50 @@ export default function Home() {
               <Link
                 key={u.id}
                 href={`/use-cases/${u.id}`}
-                className="flex h-14 items-center gap-3 px-4 transition-colors duration-150 hover:bg-raised"
+                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised"
               >
                 <CaseId id={u.id} />
-                <div className="min-w-0 flex-1 truncate text-sm">{u.title}</div>
-                <span className="hidden text-xs text-subtle sm:inline">{timeAgo(u.updated_at)}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm">{u.title}</div>
+                  <div className="mt-0.5 flex items-center gap-3 text-xs text-subtle">
+                    <VisibilityLabel visibility={u.status === "draft" ? "private" : u.visibility} />
+                    {u.team > 1 && (
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="size-3" strokeWidth={1.5} aria-hidden />
+                        {u.team}
+                      </span>
+                    )}
+                    {u.myRole === "editor" && <span>Shared with you by {u.submitter}</span>}
+                    <span className="hidden sm:inline">{timeAgo(u.updated_at)}</span>
+                  </div>
+                </div>
                 <Percent value={u.readiness} className="w-10 text-right text-[13px] text-muted" />
-                <div className="w-24">
+                <div className="hidden w-32 sm:block">
+                  <StatusPill status={u.status} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {shared.length > 0 && (
+        <div className="mt-10 w-full max-w-2xl">
+          <SectionLabel>Shared across the organisation</SectionLabel>
+          <p className="mt-1 mb-3 text-xs text-subtle">Submitted use cases other teams have opened to everyone. Read-only</p>
+          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+            {shared.map((u) => (
+              <Link
+                key={u.id}
+                href={`/use-cases/${u.id}`}
+                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-raised"
+              >
+                <CaseId id={u.id} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm">{u.title}</div>
+                  <div className="mt-0.5 truncate text-xs text-subtle">{u.business_unit}</div>
+                </div>
+                <div className="hidden w-32 sm:block">
                   <StatusPill status={u.status} />
                 </div>
               </Link>

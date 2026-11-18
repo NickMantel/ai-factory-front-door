@@ -20,12 +20,17 @@ const CAPTURED_LABELS: Record<string, string> = {
   sponsor: "Sponsor and owner",
 };
 
+export type SubmitMode = "progress" | "triage";
+
 export function Canvas({
   useCase,
   documents,
   similar,
+  similarHidden = 0,
   assessing,
   submitting,
+  readOnly,
+  coeLink,
   onSubmit,
   onViewBrief,
   onAsk,
@@ -34,22 +39,28 @@ export function Canvas({
   useCase: UseCase;
   documents: DocumentMeta[];
   similar: { id: string; title: string; business_unit: string }[];
+  /** Similar use cases this person can't open, shown only as a count. */
+  similarHidden?: number;
   assessing: boolean;
-  submitting: boolean;
-  onSubmit: () => void;
+  submitting: SubmitMode | null;
+  /** For people viewing a use case another team opened to the organisation. */
+  readOnly?: boolean;
+  coeLink?: boolean;
+  onSubmit: (mode: SubmitMode) => void;
   onViewBrief: () => void;
   onAsk: (q: string) => void;
   onRemoveDoc: (id: number) => void;
 }) {
   const a = useCase.assessment;
   const [showCaptured, setShowCaptured] = useState(false);
-  const submitted = useCase.status !== "draft";
+  const draft = useCase.status === "draft";
+  const submitted = !draft && useCase.status !== "shaping";
   const weakest = a ? Math.min(...a.dimensions.map((d) => d.score)) : 0;
 
   const statusLine = submitted
-    ? "Submitted to the AI CoE"
+    ? "Submitted to the AI CoE for triage"
     : useCase.ready
-      ? "Ready to submit"
+      ? "Ready to submit for triage"
       : !a
         ? "Describe your idea or attach documents to get a first read"
         : useCase.readiness < READINESS_THRESHOLD
@@ -78,23 +89,46 @@ export function Canvas({
             <span className="font-mono">{READINESS_THRESHOLD}% line</span>
           </div>
         </div>
-        <div className="mt-4">
-          {submitted ? (
-            <Button variant="secondary" className="w-full" onClick={onViewBrief} disabled={!useCase.brief}>
-              View use case brief
-            </Button>
-          ) : (
-            <Button className="w-full" onClick={onSubmit} disabled={!useCase.ready || submitting || assessing}>
-              {submitting ? (
-                <>
-                  <Spinner /> Writing your use case brief
-                </>
-              ) : (
-                "Submit to AI CoE"
-              )}
-            </Button>
-          )}
-        </div>
+        {!readOnly && (
+          <div className="mt-4 flex flex-col gap-2">
+            {submitted ? (
+              <Button variant="secondary" className="w-full" onClick={onViewBrief} disabled={!useCase.brief}>
+                View use case brief
+              </Button>
+            ) : (
+              <>
+                <Button
+                  className="w-full"
+                  onClick={() => onSubmit("triage")}
+                  disabled={!useCase.ready || !!submitting || assessing}
+                >
+                  {submitting === "triage" ? (
+                    <>
+                      <Spinner /> Writing your use case brief
+                    </>
+                  ) : (
+                    "Submit for triage"
+                  )}
+                </Button>
+                {draft && (
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => onSubmit("progress")}
+                    disabled={!a || !!submitting || assessing}
+                  >
+                    {submitting === "progress" ? <Spinner /> : "Save as work in progress"}
+                  </Button>
+                )}
+                <p className="text-xs leading-[18px] text-subtle">
+                  {draft
+                    ? "Private draft: only you and the people you add can see it. Submitting creates the record the AI CoE sees."
+                    : "Registered with the AI CoE as work in progress. Keep refining it here, then submit it for triage."}
+                </p>
+              </>
+            )}
+          </div>
+        )}
       </section>
 
       {a && (
@@ -132,7 +166,7 @@ export function Canvas({
             </ol>
           </section>
 
-          {!submitted && a.next_questions.length > 0 && (
+          {!submitted && !readOnly && a.next_questions.length > 0 && (
             <section>
               <SectionLabel className="mb-2">Sharpen it next</SectionLabel>
               <div className="flex flex-col gap-2">
@@ -167,7 +201,7 @@ export function Canvas({
             </div>
           </section>
 
-          {similar.length > 0 && (
+          {(similar.length > 0 || similarHidden > 0) && (
             <section>
               <SectionLabel className="mb-2">Similar use cases already in the portfolio</SectionLabel>
               <ul className="flex flex-col gap-2">
@@ -179,7 +213,11 @@ export function Canvas({
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs text-subtle">Shared logic can mean faster delivery through reuse</p>
+              <p className="mt-2 text-xs leading-[18px] text-subtle">
+                {similarHidden > 0 &&
+                  `${similarHidden}${similar.length ? " more" : ""} ${similarHidden === 1 ? "is" : "are"} private to other teams; the AI CoE can connect you. `}
+                Shared logic can mean faster delivery through reuse
+              </p>
             </section>
           )}
 
@@ -220,7 +258,7 @@ export function Canvas({
                 <span className="shrink-0 font-mono text-xs text-subtle">
                   {Math.max(1, Math.round(d.chars / 1000))}k chars{d.truncated ? ", truncated" : ""}
                 </span>
-                {!submitted && (
+                {!submitted && !readOnly && (
                   <button
                     onClick={() => onRemoveDoc(d.id)}
                     className="text-subtle opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:text-bad focus-visible:opacity-100"
@@ -235,7 +273,7 @@ export function Canvas({
         </section>
       )}
 
-      {submitted && (
+      {submitted && coeLink && (
         <Link
           href={`/coe/use-cases/${useCase.id}`}
           className="text-center text-xs text-subtle underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"

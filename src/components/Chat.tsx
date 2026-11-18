@@ -6,7 +6,7 @@ import { ArrowUp, Paperclip } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { Spinner } from "./ui";
 
-export type ChatMessage = { role: "user" | "assistant"; content: string; error?: boolean };
+export type ChatMessage = { role: "user" | "assistant"; content: string; author?: string | null; error?: boolean };
 
 const STREAM_ERROR = "\u0000ERROR:";
 
@@ -24,6 +24,9 @@ export function Chat({
   autoSend,
   disabled,
   assistantLabel = "Assistant",
+  me,
+  syncMessages,
+  draftKey,
 }: {
   endpoint: string;
   extraBody?: Record<string, unknown>;
@@ -39,10 +42,40 @@ export function Chat({
   autoSend?: string;
   disabled?: boolean;
   assistantLabel?: string;
+  /** The signed-in person's name: their messages carry it, and colleagues' messages are labelled. */
+  me?: string;
+  /** The conversation as last stored on the server, picked up when colleagues add to it. */
+  syncMessages?: ChatMessage[];
+  /** Keeps an unsent message across reloads. */
+  draftKey?: string;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [input, setInput] = useState("");
+  const [input, setInputState] = useState(() => {
+    try {
+      return draftKey ? (localStorage.getItem(draftKey) ?? "") : "";
+    } catch {
+      return "";
+    }
+  });
   const [busy, setBusy] = useState(false);
+  const [synced, setSynced] = useState(syncMessages);
+
+  // Adopt newer server messages between turns. The stored conversation only grows, so a
+  // shorter one is stale (fetched before this person's own turn landed) and is ignored.
+  if (syncMessages !== synced && !busy) {
+    setSynced(syncMessages);
+    if (syncMessages && syncMessages.length >= messages.length) setMessages(syncMessages);
+  }
+
+  function setInput(v: string) {
+    setInputState(v);
+    try {
+      if (draftKey) {
+        if (v) localStorage.setItem(draftKey, v);
+        else localStorage.removeItem(draftKey);
+      }
+    } catch {}
+  }
   const [dragging, setDragging] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -57,7 +90,7 @@ export function Chat({
     if (!content || busy) return;
     setInput("");
     setBusy(true);
-    setMessages((m) => [...m, { role: "user", content }, { role: "assistant", content: "" }]);
+    setMessages((m) => [...m, { role: "user", content, author: me }, { role: "assistant", content: "" }]);
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -155,11 +188,9 @@ export function Chat({
         <div className="mx-auto flex max-w-2xl flex-col gap-6">
           {messages.map((m, i) =>
             m.role === "user" ? (
-              <div
-                key={i}
-                className="ml-auto max-w-[85%] rounded-xl bg-raised px-4 py-3 text-sm leading-[22px] whitespace-pre-wrap"
-              >
-                {m.content}
+              <div key={i} className="ml-auto flex max-w-[85%] flex-col items-end">
+                {m.author && me && m.author !== me && <div className="mb-2 text-xs text-subtle">{m.author}</div>}
+                <div className="rounded-xl bg-raised px-4 py-3 text-sm leading-[22px] whitespace-pre-wrap">{m.content}</div>
               </div>
             ) : (
               <div key={i} className="min-w-0">

@@ -1,5 +1,6 @@
 import { connection } from "next/server";
-import { addMessage, clearMessages, documentTexts, getUseCase, listMessages, listUseCases } from "@/lib/db";
+import { requireCoE } from "@/lib/access";
+import { addMessage, clearMessages, documentTexts, getUseCase, listMessages, listRecords } from "@/lib/db";
 import { streamChat } from "@/lib/claude";
 import { coePortfolioSystem, coeUseCaseSystem } from "@/lib/prompts";
 import { textStreamResponse } from "@/lib/stream";
@@ -9,22 +10,28 @@ const PORTFOLIO = "PORTFOLIO";
 
 export async function GET(req: Request) {
   await connection();
+  const user = await requireCoE();
+  if (user instanceof Response) return user;
   const scope = new URL(req.url).searchParams.get("useCaseId") || PORTFOLIO;
   return Response.json({ messages: listMessages(scope, "coe") });
 }
 
 export async function DELETE(req: Request) {
+  const user = await requireCoE();
+  if (user instanceof Response) return user;
   const scope = new URL(req.url).searchParams.get("useCaseId") || PORTFOLIO;
   clearMessages(scope, "coe");
   return Response.json({ messages: [] });
 }
 
 export async function POST(req: Request) {
+  const user = await requireCoE();
+  if (user instanceof Response) return user;
   const { message, useCaseId } = (await req.json()) as { message: string; useCaseId?: string };
   if (!message?.trim()) return Response.json({ error: "Empty message" }, { status: 400 });
-  const all = listUseCases();
+  const all = listRecords();
   const uc = useCaseId ? getUseCase(useCaseId) : null;
-  if (useCaseId && !uc) return Response.json({ error: "Not found" }, { status: 404 });
+  if (useCaseId && (!uc || uc.status === "draft")) return Response.json({ error: "Not found" }, { status: 404 });
   const scope = uc?.id ?? PORTFOLIO;
 
   addMessage(scope, "coe", "user", message.trim());

@@ -24,7 +24,7 @@ import {
 } from "@/components/ui";
 
 const STAGE: Record<string, number> = {
-  draft: 0,
+  shaping: 0,
   submitted: 2,
   triage: 3,
   approved: 4,
@@ -65,7 +65,7 @@ export default function CoEDashboard() {
   const load = useCallback(
     () =>
       Promise.all([
-        fetch("/api/use-cases").then((r) => r.json()),
+        fetch("/api/use-cases?scope=portfolio").then((r) => r.json()),
         fetch("/api/coe/insights").then((r) => r.json()),
       ]).then(([l, i]) => {
         setUseCases(l.useCases);
@@ -117,7 +117,7 @@ export default function CoEDashboard() {
     return {
       total: useCases.length,
       awaiting: useCases.filter((u) => u.status === "submitted").length,
-      shaping: useCases.filter((u) => u.status === "draft").length,
+      shaping: useCases.filter((u) => u.status === "shaping").length,
       value: active.reduce((s, u) => s + (u.est_value ?? 0), 0),
       clusters: patternRows.filter((r) => r.count >= 2).length,
       patternRows,
@@ -181,7 +181,7 @@ export default function CoEDashboard() {
           {/* Stats: numbers only */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
-              { label: "Use cases captured", value: String(stats.total), sub: `${stats.shaping} still being shaped` },
+              { label: "Use cases registered", value: String(stats.total), sub: `${stats.shaping} work in progress` },
               {
                 label: "Awaiting triage",
                 value: String(stats.awaiting),

@@ -100,7 +100,10 @@ export type AIPatternKey = (typeof AI_PATTERNS)[number]["key"];
 export const AI_PATTERN_KEYS = AI_PATTERNS.map((p) => p.key) as [AIPatternKey, ...AIPatternKey[]];
 
 export const STATUSES = [
-  { key: "draft", label: "Draft", stage: 0 },
+  // Drafts are private workspaces; a use case becomes a record the CoE sees once it is
+  // submitted, either as work in progress or for triage.
+  { key: "draft", label: "Draft", stage: -2 },
+  { key: "shaping", label: "Work in progress", stage: 0 },
   { key: "submitted", label: "Submitted", stage: 2 },
   { key: "triage", label: "In triage", stage: 3 },
   { key: "approved", label: "Approved", stage: 4 },
@@ -114,7 +117,7 @@ export type StatusKey = (typeof STATUSES)[number]["key"];
 
 /** Funnel stages; a use case counts toward every stage up to its furthest. */
 export const FUNNEL = [
-  { key: "ideas", label: "Ideas captured" },
+  { key: "registered", label: "Registered" },
   { key: "ready", label: "Triage-ready" },
   { key: "submitted", label: "Submitted" },
   { key: "triage", label: "Triaged" },
@@ -135,6 +138,13 @@ export const BUSINESS_UNITS = [
   "Technology",
   "Enterprise & Government",
 ];
+
+export const VISIBILITIES = [
+  { key: "private", label: "Private", description: "Only you and the people you add can see it" },
+  { key: "public", label: "Organisation", description: "Anyone in the organisation can view it once submitted" },
+] as const;
+
+export type Visibility = (typeof VISIBILITIES)[number]["key"];
 
 export const labelOf = {
   dimension: (k: string) => DIMENSIONS.find((d) => d.key === k)?.label ?? k,

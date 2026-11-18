@@ -153,7 +153,7 @@ export function BarList({
 
 type Group = "draft" | "coe" | "approved";
 function group(u: UseCase): Group {
-  if (u.status === "draft") return "draft";
+  if (u.status === "shaping") return "draft";
   if (["submitted", "triage"].includes(u.status)) return "coe";
   return "approved";
 }
@@ -191,7 +191,7 @@ export function PriorityMatrix({ useCases }: { useCases: UseCase[] }) {
         {(
           [
             ["coe", "With the CoE"],
-            ["draft", "Being shaped"],
+            ["draft", "Work in progress"],
             ["approved", "Approved and beyond"],
           ] as const
         ).map(([k, l]) => (
