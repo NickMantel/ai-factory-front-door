@@ -26,6 +26,31 @@ Free-plan limits: the service sleeps after about 15 minutes without visitors, an
 
 `/api/health` stays open so Render can check the service; everything else needs the password. Behind it, each person signs in with their email, name and business unit (see below).
 
+## Change how use cases are assessed
+
+Everything about how use cases are judged lives in one plain-English file: [`frameworks/default.md`](frameworks/default.md). It sets:
+
+- the **criteria** and how much each counts, with what the assessor should look for under each
+- the **triage threshold** and the minimum score any one criterion needs
+- what each **score from 0 to 5** means
+- the **business units** people can sign in under
+- the **pathways** the CoE can recommend and the **AI patterns** it tracks
+- **guidance** for the intake assistant (house rules, things to always raise)
+
+The intake assistant, the live readiness score, the canvas, the brief and the CoE dashboard all read from it, so a change shows up everywhere at once. It can't be edited from inside the app: change it in the repo, open a pull request, and the change deploys when it merges.
+
+To change it:
+
+1. Edit `frameworks/default.md`. Notes inside `<!-- -->` explain each section.
+2. Run `npm run framework:check`, or watch it in `npm run dev`, which picks up each save. The check either summarises what the app will use (including each criterion's share of the score) or lists what to fix, in plain English.
+3. Commit and push. If the file has a problem, the build fails and the live site keeps running the previous version.
+
+Changes to weights and thresholds re-score every use case immediately. A new or renamed criterion is scored from the next time someone chats on a use case.
+
+**More than one business.** Add another file, such as [`frameworks/example-bank.md`](frameworks/example-bank.md), and set `FRAMEWORK=example-bank` on that deployment (in Render: the `FRAMEWORK` environment variable). Each deployment assesses against its own framework. The demo portfolio is mapped onto whichever framework is active, but its use cases are still the postal-service examples.
+
+If you use Claude Code, the `evaluation-framework` skill in `.claude/skills/` makes these edits from a plain request ("add a sustainability criterion worth about 10%") and runs the check.
+
 ## Who sees what
 
 People sign in on `/sign-in` with their work email, name and business unit, or as the AI CoE team. This is a demo sign-in held in a signed cookie; in production it would be single sign-on, with the CoE role from a directory group. Set `COE_EMAILS` to a comma-separated list to restrict the CoE role to those people; left unset, anyone can choose it.
@@ -60,7 +85,7 @@ People sign in on `/sign-in` with their work email, name and business unit, or a
 | Docs | `unpdf`, `mammoth`, `jszip` text extraction (`src/lib/extract.ts`) |
 
 Key files:
-- `src/lib/rubric.ts`: dimensions, weights, threshold, pathways, AI patterns, statuses. **Tune the CoE's criteria here**; prompts and UI both read from it.
+- `frameworks/*.md`: the evaluation framework (see above). `src/lib/framework.ts` reads it; `src/lib/rubric.ts` exposes it to prompts and UI, alongside the use case lifecycle (statuses and funnel).
 - `src/lib/prompts.ts`: intake agent, assessor, brief writer and CoE copilot prompts.
 - `src/lib/schemas.ts`: the Assessment, Use Case Brief and Insights schemas (the standard artefacts).
 - `src/lib/seed.ts`: the demo portfolio.

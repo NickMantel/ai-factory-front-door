@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Assessment, Brief, Insights } from "./schemas";
-import type { StatusKey, Visibility } from "./rubric";
+import { computeReadiness, meetsThreshold, type StatusKey, type Visibility } from "./rubric";
 import { applySeedAccess, seedDatabase } from "./seed";
 
 const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "frontdoor.db");
@@ -169,11 +169,16 @@ export type Channel = "intake" | "coe";
 const now = () => new Date().toISOString();
 
 function hydrate(row: UseCaseRow): UseCase {
+  const assessment: Assessment | null = row.assessment ? JSON.parse(row.assessment) : null;
+  // Score against the framework as it is now, so changes to weights or thresholds show at once.
+  const scores = assessment?.dimensions.map((d) => ({ key: d.key, score: d.score }));
+  const readiness = scores ? computeReadiness(scores) : row.readiness;
   return {
     ...row,
-    ready: !!row.ready,
+    readiness,
+    ready: scores ? meetsThreshold(readiness, scores) : !!row.ready,
     patterns: JSON.parse(row.patterns),
-    assessment: row.assessment ? JSON.parse(row.assessment) : null,
+    assessment,
     brief: row.brief ? JSON.parse(row.brief) : null,
   };
 }

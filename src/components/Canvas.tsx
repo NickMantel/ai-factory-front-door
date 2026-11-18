@@ -5,7 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { ArrowUpRight, ChevronDown, FileText, X } from "lucide-react";
 import type { DocumentMeta, UseCase } from "@/lib/db";
-import { DIMENSIONS, MIN_DIMENSION_SCORE, READINESS_THRESHOLD, labelOf } from "@/lib/rubric";
+import { DIMENSIONS, FRAMEWORK, MIN_DIMENSION_SCORE, READINESS_THRESHOLD, labelOf } from "@/lib/rubric";
 import { Button, CaseId, ReadinessMeter, ScoreBar, SectionLabel, Spinner, Tag, formatAUD } from "./ui";
 
 const CAPTURED_LABELS: Record<string, string> = {
@@ -140,7 +140,7 @@ export function Canvas({
             <p className="mt-2 text-[13px] leading-5 text-muted">{a.one_liner}</p>
           </section>
 
-          {/* The readiness sheet: eight criteria, ruled like a form */}
+          {/* The readiness sheet: one row per framework criterion, ruled like a form */}
           <section className="overflow-hidden rounded-xl border border-line bg-surface">
             <div className="flex h-10 items-center justify-between border-b border-line px-4">
               <SectionLabel>Assessment</SectionLabel>
@@ -166,6 +166,10 @@ export function Canvas({
                 );
               })}
             </ol>
+            <div className="border-t border-line px-4 py-2 text-xs text-subtle">
+              Scored against {FRAMEWORK.name}
+              {FRAMEWORK.version && ` v${FRAMEWORK.version}`}
+            </div>
           </section>
 
           {!submitted && !readOnly && a.next_questions.length > 0 && (

@@ -1,8 +1,12 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Assessment, Brief } from "./schemas";
 import {
+  AI_PATTERNS,
+  BUSINESS_UNITS,
   DIMENSIONS,
+  PATHWAYS,
   computeReadiness,
+  labelOf,
   meetsThreshold,
   type AIPatternKey,
   type PathwayKey,
@@ -11,6 +15,8 @@ import {
 
 // Synthetic demo portfolio. Deliberately includes clusters (several computer-vision
 // and knowledge-retrieval cases) so the CoE view has economies of scale to find.
+// It is written against frameworks/default.md; under another framework, scores, pathways,
+// patterns and business units are mapped onto that framework's own (see fitToFramework).
 
 type Spec = {
   title: string;
@@ -18,7 +24,8 @@ type Spec = {
   submitter: string;
   status: StatusKey;
   daysAgo: number;
-  scores: [number, number, number, number, number, number, number, number];
+  /** One per criterion, in the default framework's order. */
+  scores: number[];
   patterns: AIPatternKey[];
   pathway: PathwayKey;
   value: number | null;
@@ -45,7 +52,7 @@ const SPECS: Spec[] = [
     daysAgo: 41,
     scores: [5, 4, 4, 4, 4, 3, 3, 4],
     patterns: ["computer_vision", "classification_routing"],
-    pathway: "poc",
+    pathway: "proof_of_concept",
     value: 2_400_000,
     one_liner: "Use existing sorter cameras to flag damaged parcels before they leave the facility, cutting claims and rework.",
     problem: "Damaged parcels are only identified at delivery or by the customer, triggering claims, redelivery and complaints. ~0.6% of parcels arrive damaged.",
@@ -76,7 +83,7 @@ const SPECS: Spec[] = [
     daysAgo: 12,
     scores: [4, 4, 4, 4, 4, 3, 3, 3],
     patterns: ["computer_vision"],
-    pathway: "reuse_extend",
+    pathway: "reuse_extend_existing_capability",
     value: 900_000,
     one_liner: "Check delivery photos in real time so drivers retake unusable ones before leaving the address.",
     problem: "~9% of proof-of-delivery photos are blurry, dark or don't show the parcel, so 'where is my parcel' disputes can't be resolved.",
@@ -100,8 +107,8 @@ const SPECS: Spec[] = [
     status: "approved",
     daysAgo: 88,
     scores: [5, 4, 5, 4, 5, 4, 4, 4],
-    patterns: ["computer_vision", "document_understanding"],
-    pathway: "poc",
+    patterns: ["computer_vision", "document_understanding_extraction"],
+    pathway: "proof_of_concept",
     value: 3_100_000,
     one_liner: "Read damaged or handwritten labels with vision AI to auto-resolve parcels that currently go to manual keying.",
     problem: "~40k parcels/day fail OCR at sortation and go to manual video-coding teams, adding up to 24h delay.",
@@ -129,7 +136,7 @@ const SPECS: Spec[] = [
     daysAgo: 5,
     scores: [3, 2, 3, 2, 3, 2, 2, 2],
     patterns: ["computer_vision"],
-    pathway: "reuse_extend",
+    pathway: "reuse_extend_existing_capability",
     value: null,
     one_liner: "Check store shelf photos against planograms so area managers see compliance without store visits.",
     problem: "Area managers visit stores to check merchandising and promotional setup; visits are infrequent and inconsistent.",
@@ -155,7 +162,7 @@ const SPECS: Spec[] = [
     daysAgo: 2,
     scores: [3, 2, 3, 3, 3, 2, 2, 3],
     patterns: ["computer_vision"],
-    pathway: "reuse_extend",
+    pathway: "reuse_extend_existing_capability",
     value: 450_000,
     one_liner: "Detect new vehicle damage from driver walk-around photos to speed up repairs and recover costs.",
     problem: "Vehicle damage is reported late or not at all, so repair costs can't be attributed and vehicles are off-road longer.",
@@ -176,8 +183,8 @@ const SPECS: Spec[] = [
     status: "live",
     daysAgo: 210,
     scores: [5, 5, 5, 4, 5, 4, 4, 5],
-    patterns: ["knowledge_retrieval", "conversational_assistant"],
-    pathway: "productionise",
+    patterns: ["knowledge_retrieval_rag", "conversational_assistant"],
+    pathway: "productionise_scale",
     value: 4_200_000,
     one_liner: "Give agents instant, cited answers from 3,000+ knowledge articles during live calls and chats.",
     problem: "Agents search a fragmented knowledge base mid-call; average handle time and repeat contacts are high.",
@@ -201,8 +208,8 @@ const SPECS: Spec[] = [
     status: "submitted",
     daysAgo: 9,
     scores: [4, 3, 4, 4, 4, 4, 3, 3],
-    patterns: ["knowledge_retrieval", "conversational_assistant"],
-    pathway: "reuse_extend",
+    patterns: ["knowledge_retrieval_rag", "conversational_assistant"],
+    pathway: "reuse_extend_existing_capability",
     value: 600_000,
     one_liner: "Answer employee questions on leave, pay and policies from approved HR content, deflecting tickets.",
     problem: "HR service desk handles ~6,000 tickets/month; 55% are answerable from existing policy documents.",
@@ -223,8 +230,8 @@ const SPECS: Spec[] = [
     status: "triage",
     daysAgo: 27,
     scores: [4, 3, 4, 4, 4, 3, 3, 4],
-    patterns: ["knowledge_retrieval", "conversational_assistant"],
-    pathway: "reuse_extend",
+    patterns: ["knowledge_retrieval_rag", "conversational_assistant"],
+    pathway: "reuse_extend_existing_capability",
     value: 1_100_000,
     one_liner: "Help counter staff handle complex transactions (identity, international, financial services) with step-by-step guidance.",
     problem: "Counter staff handle 300+ product types; complex transactions cause queues, errors and calls to the retail helpdesk.",
@@ -245,8 +252,8 @@ const SPECS: Spec[] = [
     status: "in_delivery",
     daysAgo: 130,
     scores: [5, 5, 4, 4, 4, 4, 4, 4],
-    patterns: ["document_understanding", "agentic_workflow"],
-    pathway: "poc",
+    patterns: ["document_understanding_extraction", "agentic_workflow_automation"],
+    pathway: "proof_of_concept",
     value: 1_800_000,
     one_liner: "Triage and resolve invoice mismatches automatically, drafting supplier queries for the remainder.",
     problem: "18% of ~50k monthly supplier invoices fail three-way match and wait in an exceptions queue; late-payment penalties and supplier friction.",
@@ -270,8 +277,8 @@ const SPECS: Spec[] = [
     status: "parked",
     daysAgo: 70,
     scores: [3, 2, 3, 3, 3, 3, 3, 2],
-    patterns: ["document_understanding"],
-    pathway: "buy_saas",
+    patterns: ["document_understanding_extraction"],
+    pathway: "buy_leverage_saas",
     value: 250_000,
     one_liner: "First-pass review of supplier contracts against the legal playbook.",
     problem: "Lawyers spend time on low-risk supplier contract reviews.",
@@ -292,8 +299,8 @@ const SPECS: Spec[] = [
     status: "approved",
     daysAgo: 60,
     scores: [5, 4, 4, 5, 4, 4, 4, 4],
-    patterns: ["classification_routing", "generative_content"],
-    pathway: "productionise",
+    patterns: ["classification_routing", "content_generation"],
+    pathway: "productionise_scale",
     value: 1_300_000,
     one_liner: "Classify inbound complaints by issue and urgency, route to the right team and draft a first response.",
     problem: "~15k written complaints/month are manually triaged; 20% are misrouted, adding 2 days to resolution.",
@@ -315,7 +322,7 @@ const SPECS: Spec[] = [
     daysAgo: 33,
     scores: [4, 4, 4, 3, 3, 3, 4, 4],
     patterns: ["forecasting_optimisation"],
-    pathway: "data_foundation",
+    pathway: "data_foundations_first",
     value: 2_000_000,
     one_liner: "Forecast daily parcel volumes by facility to plan labour and linehaul for peak.",
     problem: "Peak forecasts are spreadsheet-based and miss by ±15%, causing overtime blowouts or idle capacity.",
@@ -339,8 +346,8 @@ const SPECS: Spec[] = [
     status: "submitted",
     daysAgo: 6,
     scores: [4, 4, 4, 4, 4, 3, 3, 4],
-    patterns: ["speech_analytics", "generative_content"],
-    pathway: "buy_saas",
+    patterns: ["speech_conversation_analytics", "content_generation"],
+    pathway: "buy_leverage_saas",
     value: 1_500_000,
     one_liner: "Auto-summarise calls into the CRM and score 100% of calls for quality instead of a 2% sample.",
     problem: "Agents spend ~60s per call on wrap-up notes; QA samples only 2% of calls.",
@@ -361,8 +368,8 @@ const SPECS: Spec[] = [
     status: "shaping",
     daysAgo: 1,
     scores: [2, 1, 2, 2, 2, 1, 1, 1],
-    patterns: ["generative_content"],
-    pathway: "needs_discovery",
+    patterns: ["content_generation"],
+    pathway: "further_discovery",
     value: null,
     one_liner: "Generate on-brand email and social copy variants for small business campaigns.",
     problem: "Campaign copy takes too long to write.",
@@ -383,8 +390,8 @@ const SPECS: Spec[] = [
     status: "declined",
     daysAgo: 95,
     scores: [3, 3, 2, 2, 3, 2, 2, 2],
-    patterns: ["anomaly_detection"],
-    pathway: "data_foundation",
+    patterns: ["anomaly_fraud_detection"],
+    pathway: "data_foundations_first",
     value: 700_000,
     one_liner: "Flag suspicious lost/damaged parcel claims for investigation.",
     problem: "Suspected repeat fraudulent claims, scale unknown.",
@@ -405,7 +412,7 @@ const SPECS: Spec[] = [
     status: "submitted",
     daysAgo: 3,
     scores: [4, 4, 4, 3, 4, 3, 3, 4],
-    patterns: ["knowledge_retrieval", "generative_content"],
+    patterns: ["knowledge_retrieval_rag", "content_generation"],
     pathway: "low_code_agent",
     value: 800_000,
     one_liner: "Draft first-pass tender responses from past winning bids and capability statements.",
@@ -431,16 +438,31 @@ const RATIONALE: Record<number, string> = {
   5: "Evidenced, quantified and owned.",
 };
 
-const GAP: Record<string, string> = {
+const GAPS: Record<string, string> = {
   problem_clarity: "Quantify how often the problem occurs and what it costs today.",
-  value: "Put a number on the benefit and name the metric you'd track.",
+  value_outcomes: "Put a number on the benefit and name the metric you'd track.",
   process_users: "Describe the current process step by step, with volumes.",
   data_readiness: "Confirm which systems hold the data, who owns it and whether it can be accessed.",
-  ai_fit: "Explain why AI is needed over rules or reporting, and where a human reviews outputs.",
-  feasibility: "List the systems this must integrate with and any platform constraints.",
-  risk: "Identify personal information involved and how errors would be caught.",
-  ownership: "Name an accountable sponsor and a day-to-day product owner.",
+  ai_fit_concept: "Explain why AI is needed over rules or reporting, and where a human reviews outputs.",
+  feasibility_integration: "List the systems this must integrate with and any platform constraints.",
+  risk_responsible_ai: "Identify personal information involved and how errors would be caught.",
+  ownership_adoption: "Name an accountable sponsor and a day-to-day product owner.",
 };
+const gapFor = (d: { key: string; label: string }) => GAPS[d.key] ?? `Add more detail on ${d.label.toLowerCase()}.`;
+
+/** Maps a demo use case onto the framework in use, so the demo works under any framework. */
+function fitToFramework(s: Spec, i: number): Spec {
+  const pick = <T extends { key: string }>(list: readonly T[], key: string, n: number) =>
+    list.some((x) => x.key === key) ? key : list[n % list.length].key;
+  const mean = Math.round(s.scores.reduce((a, b) => a + b, 0) / s.scores.length);
+  return {
+    ...s,
+    bu: BUSINESS_UNITS.includes(s.bu) ? s.bu : BUSINESS_UNITS[i % BUSINESS_UNITS.length],
+    scores: DIMENSIONS.map((_, k) => s.scores[k] ?? mean),
+    patterns: [...new Set(s.patterns.map((p, k) => pick(AI_PATTERNS, p, i + k)))],
+    pathway: pick(PATHWAYS, s.pathway, i),
+  };
+}
 
 function iso(daysAgo: number, hourOffset = 0) {
   return new Date(Date.now() - daysAgo * 86_400_000 + hourOffset * 3_600_000).toISOString();
@@ -454,7 +476,7 @@ function buildAssessment(s: Spec, id: string, similar: string[]): Assessment {
       key: d.key,
       score: s.scores[i],
       rationale: RATIONALE[s.scores[i]],
-      gap: s.scores[i] >= 4 ? "" : GAP[d.key],
+      gap: s.scores[i] >= 4 ? "" : gapFor(d),
     })),
     captured: {
       problem: s.problem,
@@ -469,9 +491,9 @@ function buildAssessment(s: Spec, id: string, similar: string[]): Assessment {
     },
     ai_patterns: s.patterns,
     strengths: s.scores[0] >= 4 ? ["Specific, evidenced problem", "Clear users and volumes"] : ["Observable problem"],
-    next_questions: DIMENSIONS.filter((_, i) => s.scores[i] < 3).slice(0, 3).map((d) => GAP[d.key]),
+    next_questions: DIMENSIONS.filter((_, i) => s.scores[i] < 3).slice(0, 3).map(gapFor),
     indicative_pathway: s.pathway,
-    pathway_rationale: `Indicative: ${s.pathway.replace(/_/g, " ")} based on maturity of value, data and solution concept.`,
+    pathway_rationale: `Indicative: ${labelOf.pathway(s.pathway).toLowerCase()} based on maturity of value, data and solution concept.`,
     estimated_annual_value_aud: s.value,
     similar_use_case_ids: similar.filter((x) => x !== id),
   };
@@ -499,7 +521,7 @@ function buildBrief(s: Spec, similarTitles: string[]): Brief {
     dependencies: s.data.filter((d) => d.readiness !== "available").map((d) => `Access to ${d.source}`),
     stakeholders: [{ role: "Sponsor", who: s.sponsor || "TBC" }, { role: "Submitter", who: `${s.submitter}, ${s.bu}` }],
     recommended_pathway: s.pathway,
-    pathway_rationale: `Recommended ${s.pathway.replace(/_/g, " ")} given the maturity of the value case, data and solution concept.`,
+    pathway_rationale: `Recommended ${labelOf.pathway(s.pathway).toLowerCase()} given the maturity of the value case, data and solution concept.`,
     alternative_pathways: [],
     reuse_opportunities: similarTitles.length ? `Shares core logic with: ${similarTitles.join(", ")}.` : "",
     open_questions_for_coe: ["Confirm platform and hosting pattern.", "Confirm privacy impact assessment requirements."],
@@ -510,7 +532,8 @@ function buildBrief(s: Spec, similarTitles: string[]): Brief {
 const LIFECYCLE: StatusKey[] = ["draft", "submitted", "triage", "approved", "in_delivery", "live"];
 
 export function seedDatabase(conn: DatabaseSync) {
-  const ids = SPECS.map((_, i) => `UC-${1001 + i}`);
+  const specs = SPECS.map(fitToFramework);
+  const ids = specs.map((_, i) => `UC-${1001 + i}`);
   const insertUC = conn.prepare(`INSERT INTO use_cases
     (id, title, business_unit, submitter, status, readiness, ready, pathway, patterns, est_value, one_liner,
      assessment, brief, created_at, updated_at, submitted_at)
@@ -522,16 +545,16 @@ export function seedDatabase(conn: DatabaseSync) {
     "INSERT INTO messages (use_case_id, channel, role, content, author, created_at) VALUES (?, 'intake', ?, ?, ?, ?)",
   );
 
-  SPECS.forEach((s, i) => {
+  specs.forEach((s, i) => {
     const id = ids[i];
-    const similar = ids.filter((other, j) => other !== id && SPECS[j].patterns[0] === s.patterns[0]);
+    const similar = ids.filter((other, j) => other !== id && specs[j].patterns[0] === s.patterns[0]);
     const assessment = buildAssessment(s, id, similar);
     const scores = assessment.dimensions.map((d) => ({ key: d.key, score: d.score }));
     const readiness = computeReadiness(scores);
     const ready = meetsThreshold(readiness, scores);
     const submitted = s.status !== "draft" && s.status !== "shaping";
     const brief = submitted
-      ? buildBrief(s, similar.map((sid) => SPECS[ids.indexOf(sid)].title))
+      ? buildBrief(s, similar.map((sid) => specs[ids.indexOf(sid)].title))
       : null;
     const created = iso(s.daysAgo);
     const submittedAt = submitted ? iso(Math.max(0, s.daysAgo - 2)) : null;

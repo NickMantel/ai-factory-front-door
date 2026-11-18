@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "framework:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-framework.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.9.0",

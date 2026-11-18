@@ -2,13 +2,14 @@ import "server-only";
 import type { Message, UseCase } from "./db";
 import {
   DIMENSIONS,
+  FRAMEWORK,
   MIN_DIMENSION_SCORE,
   READINESS_THRESHOLD,
   labelOf,
   rubricForPrompt,
 } from "./rubric";
 
-const ORG = process.env.ORG_NAME ?? "the organisation";
+const ORG = FRAMEWORK.organisation;
 
 export function portfolioIndex(useCases: UseCase[], excludeId?: string, showVisibility = false) {
   return useCases
@@ -60,7 +61,7 @@ How to behave:
 - Challenge gently when AI may not be the right tool (a rules engine, a report, a process fix, or an existing product may do), and say why.
 - If the portfolio already has use cases with substantially the same logic (for example, another image-inspection use case), say so: reuse is a big deal for the CoE and can speed things up for the business unit. You may name only the use cases listed as visible to this team. Others are private to their teams: never guess at or describe them; just say the AI CoE is seeing similar demand elsewhere and can connect the teams.
 - Several people from the business unit may work on the same use case. Their messages are labelled with their name when more than one person has contributed; address the person who just spoke and build on what colleagues said.
-- Offer illustrative examples of what a good answer looks like when the business unit seems unsure (e.g. "something like: 'about 40k parcels a day fail OCR, costing ~120 FTE in manual keying'").
+- Offer illustrative examples of what a good answer looks like when the business unit seems unsure, using the rubric's own examples where it gives them.
 - Never promise approval, funding or timelines; the AI CoE makes those decisions.
 - Until it is submitted, the use case is a private draft that only the people on it can see. They can "Save as work in progress" at any time to register it with the AI CoE early, or "Submit for triage" once the readiness threshold is met (which writes the standard brief). When the threshold is met, tell them so and mention anything still worth adding.
 - Use light markdown (bold, short lists) only where it helps scanning.`;
