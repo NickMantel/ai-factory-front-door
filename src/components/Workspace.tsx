@@ -227,7 +227,7 @@ export function Workspace() {
             uploading={uploading}
             sendRef={sendRef}
             autoSend={firstMessage}
-            assistantLabel="AI Front Door"
+            assistantLabel="AI Factory Front Door"
             placeholder={
               uc.status === "draft" || uc.status === "shaping"
                 ? "Describe your idea, answer a question, or drop in documents…"
@@ -437,7 +437,7 @@ function SubmitDialog({
         <h2 className="text-[15px] font-medium">{mode === "triage" ? "Submit for triage" : "Save as work in progress"}</h2>
         <p className="mt-2 text-sm leading-[22px] text-muted">
           {mode === "triage"
-            ? "The AI Front Door writes the standard use case brief from your conversation and documents, which takes about a minute, and sends it to the AI CoE for triage."
+            ? "The AI Factory Front Door writes the standard use case brief from your conversation and documents, which takes about a minute, and sends it to the AI CoE for triage."
             : "This registers the use case with the AI CoE as work in progress and gives it a case number. You and your collaborators keep refining it here, and submit it for triage when it's ready."}
         </p>
         <SectionLabel className="mt-6 mb-2">Who can see it</SectionLabel>
@@ -514,7 +514,7 @@ function SharePanel({
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <SectionLabel className="mb-2">People on this use case</SectionLabel>
         <p className="mb-3 text-xs leading-[18px] text-subtle">
-          They can see the draft, chat with the AI Front Door, add documents and submit it.
+          They can see the draft, chat with the AI Factory Front Door, add documents and submit it.
         </p>
         <ul className="divide-y divide-line rounded-xl border border-line">
           {data.collaborators.map((c) => (
@@ -643,7 +643,7 @@ function SharedView({ data, children }: { data: Data; children?: React.ReactNode
 function WelcomeState({ businessUnit }: { businessUnit: string }) {
   return (
     <div className="mx-auto mb-8 max-w-2xl text-[15px] leading-6">
-      <div className="mb-2 text-xs text-subtle">AI Front Door</div>
+      <div className="mb-2 text-xs text-subtle">AI Factory Front Door</div>
       <p>
         Describe the problem {businessUnit} is trying to solve, in your own words, or attach what you already have:
         a Confluence page, slide deck, PDF or screenshot.

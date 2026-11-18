@@ -1,4 +1,4 @@
-# AI Front Door
+# AI Factory Front Door
 
 A demo of a self-service front door to an AI Centre of Excellence. Business units bring an AI idea (with Confluence exports, decks, PDFs and screenshots), get instant feedback and a live readiness score from Claude, and submit a standardised **Use Case Brief** once it clears the triage threshold. The AI CoE gets a portfolio view: funnel, pattern clusters, a prioritisation matrix, and a Claude copilot for questions about one use case or across all of them.
 

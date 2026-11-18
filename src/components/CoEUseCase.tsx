@@ -244,7 +244,7 @@ export function CoEUseCase() {
                       {data.messages.map((m) => (
                         <div key={m.id}>
                           <div className="mb-2 text-xs text-subtle">
-                            {m.role === "user" ? (m.author ?? uc.submitter) : "AI Front Door"}
+                            {m.role === "user" ? (m.author ?? uc.submitter) : "AI Factory Front Door"}
                           </div>
                           {m.role === "user" ? (
                             <div className="rounded-xl bg-raised px-4 py-3 text-sm leading-[22px] whitespace-pre-wrap">

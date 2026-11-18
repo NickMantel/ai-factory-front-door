@@ -57,7 +57,7 @@ export function SignIn() {
   return (
     <div className="flex flex-1 justify-center px-4 pb-16">
       <div className="enter w-full max-w-md pt-12 sm:pt-20">
-        <div className="mb-2 text-xs text-subtle">AI Front Door</div>
+        <div className="mb-2 text-xs text-subtle">AI Factory Front Door</div>
         <h1 className="text-[22px] leading-7 font-medium">Sign in</h1>
         <p className="mt-2 text-sm leading-[22px] text-muted">
           Use cases you start are private to you and the people you add, until you submit them to the AI CoE.

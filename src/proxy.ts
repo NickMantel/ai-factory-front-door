@@ -9,7 +9,7 @@ export function proxy(request: NextRequest) {
   if (password && !hasPassword(request, password)) {
     return new NextResponse("Password required", {
       status: 401,
-      headers: { "WWW-Authenticate": 'Basic realm="AI Front Door", charset="UTF-8"' },
+      headers: { "WWW-Authenticate": 'Basic realm="AI Factory Front Door", charset="UTF-8"' },
     });
   }
 

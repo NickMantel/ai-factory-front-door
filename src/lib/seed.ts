@@ -552,7 +552,7 @@ export function seedDatabase(conn: DatabaseSync) {
     }
     for (let k = 1; k <= upto; k++) {
       const at = iso(Math.max(0, s.daysAgo - 2 - (k - 1) * 7));
-      insertEvent.run(id, "status", LIFECYCLE[k - 1], LIFECYCLE[k], k === 1 ? "Submitted via AI Front Door" : null, k === 1 ? s.submitter : "AI CoE", at);
+      insertEvent.run(id, "status", LIFECYCLE[k - 1], LIFECYCLE[k], k === 1 ? "Submitted via AI Factory Front Door" : null, k === 1 ? s.submitter : "AI CoE", at);
     }
     if (terminal) {
       insertEvent.run(id, "status", "triage", s.status,

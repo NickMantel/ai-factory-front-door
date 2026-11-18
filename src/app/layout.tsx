@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Front Door",
+  title: "AI Factory Front Door",
   description: "Self-service intake and portfolio intelligence for AI use cases.",
 };
 

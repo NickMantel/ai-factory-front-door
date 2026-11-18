@@ -96,7 +96,7 @@ export default function Home() {
       <div className="enter flex w-full max-w-2xl flex-1 flex-col justify-center pt-12 sm:pt-16">
         {/* Opening message from the front door */}
         <div className="text-[15px] leading-6">
-          <div className="mb-2 text-xs text-subtle">AI Front Door</div>
+          <div className="mb-2 text-xs text-subtle">AI Factory Front Door</div>
           <p>
             This is the AI Centre of Excellence front door. Describe a problem you think AI could help with: who&apos;s
             affected, what happens today, and what good would look like. Rough is fine.

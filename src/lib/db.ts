@@ -323,7 +323,7 @@ export function saveBrief(id: string, b: Brief, actor: string) {
       ts,
       id,
     );
-  addEvent(id, { kind: "status", from_status: uc.status, to_status: "submitted", actor, note: "Submitted via AI Front Door" });
+  addEvent(id, { kind: "status", from_status: uc.status, to_status: "submitted", actor, note: "Submitted via AI Factory Front Door" });
 }
 
 export function updateStatus(id: string, status: StatusKey, note: string | null, actor: string) {

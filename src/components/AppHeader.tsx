@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { ChevronDown } from "lucide-react";
 import type { User } from "@/lib/session";
+import { MantelLogo } from "./MantelLogo";
 import { signOut, useSession } from "./session";
 
 export function AppHeader() {
@@ -28,8 +29,9 @@ export function AppHeader() {
         </div>
       )}
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
-        <Link href="/" className="text-base font-medium">
-          AI Front Door
+        <Link href="/" className="flex items-center gap-2 text-base font-medium">
+          <MantelLogo className="h-5 w-auto" />
+          AI Factory Front Door
         </Link>
         <span className="hidden text-[13px] text-subtle sm:inline">AI Centre of Excellence</span>
 
