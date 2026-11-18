@@ -83,7 +83,9 @@ export function Canvas({
           {useCase.readiness}%
         </div>
         <div className="mt-4">
-          <ReadinessMeter value={useCase.readiness} />
+          <div className={clsx(assessing && "animate-pulse")}>
+            <ReadinessMeter value={useCase.readiness} />
+          </div>
           <div className="mt-2 flex justify-between text-xs text-subtle">
             <span className={clsx(useCase.ready && "text-good")}>{statusLine}</span>
             <span className="font-mono">{READINESS_THRESHOLD}% line</span>

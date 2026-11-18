@@ -43,6 +43,7 @@ export function Workspace() {
   const [missing, setMissing] = useState<string | null>(null);
   const [firstMessage, setFirstMessage] = useState<string | undefined>();
   const [assessing, setAssessing] = useState(false);
+  const [scored, setScored] = useState<{ from: number | null; to: number } | null>(null);
   const [submitting, setSubmitting] = useState<SubmitMode | null>(null);
   const [confirming, setConfirming] = useState<SubmitMode | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -86,13 +87,22 @@ export function Workspace() {
     [data?.messages],
   );
 
+  // The score before this update, so the chat can say how it moved.
+  const lastScore = useRef<number | null>(null);
+  useEffect(() => {
+    lastScore.current = data?.useCase.assessment ? data.useCase.readiness : null;
+  }, [data?.useCase]);
+
   const assess = useCallback(async () => {
+    const from = lastScore.current;
+    setScored(null);
     setAssessing(true);
     try {
       const res = await fetch(`/api/use-cases/${id}/assess`, { method: "POST" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
       setData((d) => (d ? { ...d, useCase: body.useCase } : d));
+      setScored({ from, to: body.useCase.readiness });
       // Refresh the server-resolved list of similar use cases for the new assessment.
       void load().catch(() => {});
     } catch (e) {
@@ -199,7 +209,7 @@ export function Workspace() {
               onClick={() => setTab(t)}
               className={clsx("h-6 rounded-md px-2", tab === t ? "bg-surface text-foreground ring-1 ring-line" : "text-muted")}
             >
-              {t === "canvas" ? `${uc.readiness}%` : "Chat"}
+              {t === "chat" ? "Chat" : assessing ? <Spinner className="size-3" /> : `${uc.readiness}%`}
             </button>
           ))}
         </div>
@@ -223,6 +233,14 @@ export function Workspace() {
             me={data.me.name}
             draftKey={`frontdoor:unsent:${id}`}
             onAssistantDone={assess}
+            onSend={() => setScored(null)}
+            status={
+              assessing ? (
+                <AssessingStatus />
+              ) : scored ? (
+                <ScoredStatus {...scored} ready={uc.ready} onShow={() => setTab("canvas")} />
+              ) : null
+            }
             onFiles={upload}
             uploading={uploading}
             sendRef={sendRef}
@@ -653,6 +671,48 @@ function WelcomeState({ businessUnit }: { businessUnit: string }) {
         work in progress whenever you like, or once it clears the {"70%"} line with every criterion at 2 or more, submit
         it for triage and the CoE receives a standard brief.
       </p>
+    </div>
+  );
+}
+
+/** Scoring takes a little while after each reply; say so where the person is looking. */
+function AssessingStatus() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div
+      role="status"
+      className="enter flex items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft px-4 py-3 text-sm text-accent"
+    >
+      <Spinner />
+      <span className="flex-1">Updating your triage readiness score against the CoE criteria…</span>
+      <span className="font-mono text-xs tabular-nums opacity-70">{seconds}s</span>
+    </div>
+  );
+}
+
+function ScoredStatus({ from, to, ready, onShow }: { from: number | null; to: number; ready: boolean; onShow: () => void }) {
+  const change =
+    from === null ? (
+      <>Readiness scored at {to}%</>
+    ) : from === to ? (
+      <>Readiness unchanged at {to}%</>
+    ) : (
+      <>
+        Readiness {from}% → {to}%
+      </>
+    );
+  return (
+    <div role="status" className="enter flex items-center gap-3 px-1 text-xs text-subtle">
+      <span className={clsx("size-1.5 rounded-full", ready ? "bg-good" : "bg-[var(--progress)]")} aria-hidden />
+      <span className="font-mono tabular-nums">{change}</span>
+      {ready && <span className="text-good">Ready to submit for triage</span>}
+      <button onClick={onShow} className="ml-auto text-accent hover:underline lg:hidden">
+        See breakdown
+      </button>
     </div>
   );
 }

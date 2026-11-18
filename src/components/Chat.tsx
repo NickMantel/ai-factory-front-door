@@ -27,6 +27,8 @@ export function Chat({
   me,
   syncMessages,
   draftKey,
+  status,
+  onSend,
 }: {
   endpoint: string;
   extraBody?: Record<string, unknown>;
@@ -48,6 +50,9 @@ export function Chat({
   syncMessages?: ChatMessage[];
   /** Keeps an unsent message across reloads. */
   draftKey?: string;
+  /** Shown under the conversation, e.g. while the readiness score updates after a reply. */
+  status?: ReactNode;
+  onSend?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInputState] = useState(() => {
@@ -81,15 +86,17 @@ export function Chat({
   const fileInput = useRef<HTMLInputElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
+  const hasStatus = status != null && status !== false;
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, hasStatus]);
 
   async function send(text: string) {
     const content = text.trim();
     if (!content || busy) return;
     setInput("");
     setBusy(true);
+    onSend?.();
     setMessages((m) => [...m, { role: "user", content, author: me }, { role: "assistant", content: "" }]);
     try {
       const res = await fetch(endpoint, {
@@ -209,6 +216,7 @@ export function Chat({
               </div>
             ),
           )}
+          {!busy && status}
         </div>
       </div>
 
